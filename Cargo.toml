@@ -22,3 +22,4 @@ systray = { git = "https://github.com/qdot/systray-rs.git", branch = "linux-core
 mailparse = "0.5.1"
 toml = "0.3.1"
 xdg = "2.0.0"
+notify-rust = "3.2.1"

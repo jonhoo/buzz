@@ -4,6 +4,7 @@ extern crate imap;
 extern crate openssl;
 extern crate systray;
 extern crate mailparse;
+extern crate notify_rust;
 
 use openssl::ssl::{SslContext, SslMethod};
 use imap::client::Client;
@@ -197,16 +198,16 @@ fn main() {
                 }
 
                 if !subjects.is_empty() {
+                    use notify_rust::{Notification, NotificationHint};
                     let title = format!("@{} has new mail ({} unseen)", account, num_unseen);
                     let notification = format!("> {}", subjects.join("\n> "));
-                    Command::new("/usr/bin/notify-send")
-                        .arg("-i")
-                        .arg("notification-message-email")
-                        .arg("-c")
-                        .arg("email")
-                        .arg(title)
-                        .arg(notification)
-                        .status()
+                    Notification::new()
+                        .summary(&title)
+                        .body(&notification)
+                        .icon("notification-message-email")
+                        .hint(NotificationHint::Category("email".to_owned()))
+                        .timeout(-1)
+                        .show()
                         .expect("failed to launch notify-send");
                 }
 
