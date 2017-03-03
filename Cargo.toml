@@ -16,8 +16,8 @@ categories = ["command-line-utilities", "email"]
 license = "MIT/Apache-2.0"
 
 [dependencies]
-imap = { git = "https://github.com/jonhoo/rust-imap.git", branch = "idle" }
-openssl = "0.7.13"
+imap = "0.2.1"
+openssl = "0.8.3"
 systray = { git = "https://github.com/qdot/systray-rs.git", branch = "linux-core" }
 mailparse = "0.5.1"
 toml = "0.3.1"
