@@ -1,6 +1,7 @@
 extern crate xdg;
 extern crate toml;
 extern crate imap;
+extern crate rayon;
 extern crate openssl;
 extern crate systray;
 extern crate mailparse;
@@ -8,10 +9,12 @@ extern crate notify_rust;
 
 use openssl::ssl::{SslContext, SslMethod};
 use imap::client::Client;
+use rayon::prelude::*;
 
 use std::collections::HashSet;
 use std::process::Command;
 use std::io::prelude::*;
+use std::time::Duration;
 use std::sync::mpsc;
 use std::fs::File;
 use std::thread;
@@ -122,22 +125,48 @@ fn main() {
     // TODO: w.set_tooltip(&"Whatever".to_string());
     // TODO: app.wait_for_message();
 
-    let accounts: Vec<_> = accounts.into_iter()
+    let accounts: Vec<_> = accounts.par_iter()
         .filter_map(|a| {
-            let name = a.name;
-            Client::secure_connect(a.server, SslContext::new(SslMethod::Sslv23).unwrap())
-                .map(move |mut c| {
-                    c.login(a.username, &a.password).unwrap();
-                    assert!(c.capability().unwrap().iter().any(|c| c == "IDLE"));
-                    c.select("INBOX").unwrap();
-                    (String::from(name), c)
-                })
-                .map_err(move |e| {
-                    println!("Failed to connect account {}: {}", name, e);
-                })
-                .ok()
+            let mut wait = 1;
+            for _ in 0..5 {
+                let c = Client::secure_connect(a.server,
+                                               SslContext::new(SslMethod::Sslv23).unwrap())
+                    .and_then(|mut c| {
+                        try!(c.login(a.username, &a.password));
+                        let cap = try!(c.capability());
+                        if !cap.iter().any(|c| c == "IDLE") {
+                            return Err(imap::error::Error::BadResponse(cap));
+                        }
+                        try!(c.select("INBOX"));
+                        Ok((String::from(a.name), c))
+                    });
+
+                match c {
+                    Ok(c) => return Some(c),
+                    Err(imap::error::Error::Io(e)) => {
+                        println!("Failed to connect account {}: {}; retrying in {}s",
+                                 a.name,
+                                 e,
+                                 wait);
+                        thread::sleep(Duration::from_secs(wait));
+                    }
+                    Err(e) => {
+                        println!("{} host produced bad IMAP tunnel: {}", a.name, e);
+                        break;
+                    }
+                }
+
+                wait *= 2;
+            }
+
+            None
         })
         .collect();
+
+    if accounts.is_empty() {
+        println!("No accounts in config worked; exiting...");
+        return;
+    }
 
     // We have now connected
     app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_connect.png".to_string()).ok();
