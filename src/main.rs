@@ -67,33 +67,33 @@ fn main() {
         Some(t) => {
             t.iter()
                 .filter_map(|(name, v)| match v.as_table() {
-                    None => {
-                        println!("Configuration for account {} is broken: not a table", name);
-                        None
-                    }
-                    Some(t) => {
-                        let pwcmd = match t.get("pwcmd").and_then(|p| p.as_str()) {
-                            None => return None,
-                            Some(pwcmd) => pwcmd,
-                        };
+                                None => {
+                    println!("Configuration for account {} is broken: not a table", name);
+                    None
+                }
+                                Some(t) => {
+                    let pwcmd = match t.get("pwcmd").and_then(|p| p.as_str()) {
+                        None => return None,
+                        Some(pwcmd) => pwcmd,
+                    };
 
-                        let password = match Command::new("sh").arg("-c").arg(pwcmd).output() {
-                            Ok(output) => String::from_utf8_lossy(&output.stdout).into_owned(),
-                            Err(e) => {
-                                println!("Failed to launch password command for {}: {}", name, e);
-                                return None;
-                            }
-                        };
+                    let password = match Command::new("sh").arg("-c").arg(pwcmd).output() {
+                        Ok(output) => String::from_utf8_lossy(&output.stdout).into_owned(),
+                        Err(e) => {
+                            println!("Failed to launch password command for {}: {}", name, e);
+                            return None;
+                        }
+                    };
 
-                        Some(Account {
-                            name: &name,
-                            server: (t["server"].as_str().unwrap(),
-                                     t["port"].as_integer().unwrap() as u16),
-                            username: t["username"].as_str().unwrap(),
-                            password: password,
-                        })
-                    }
-                })
+                    Some(Account {
+                             name: &name,
+                             server: (t["server"].as_str().unwrap(),
+                                      t["port"].as_integer().unwrap() as u16),
+                             username: t["username"].as_str().unwrap(),
+                             password: password,
+                         })
+                }
+                            })
                 .collect()
         }
         None => {
@@ -115,7 +115,8 @@ fn main() {
             return;
         }
     };
-    if let Err(e) = app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_disconnect.png".to_string()) {
+    if let Err(e) = app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_disconnect.png"
+                                                .to_string()) {
         println!("Could not set application icon: {}", e);
     }
     if let Err(e) = app.add_menu_item(&"Quit".to_string(), |window| { window.quit(); }) {
@@ -125,21 +126,22 @@ fn main() {
     // TODO: w.set_tooltip(&"Whatever".to_string());
     // TODO: app.wait_for_message();
 
-    let accounts: Vec<_> = accounts.par_iter()
+    let accounts: Vec<_> = accounts
+        .par_iter()
         .filter_map(|a| {
             let mut wait = 1;
             for _ in 0..5 {
                 let c = Client::secure_connect(a.server,
                                                SslContext::new(SslMethod::Sslv23).unwrap())
-                    .and_then(|mut c| {
-                        try!(c.login(a.username, &a.password));
-                        let cap = try!(c.capability());
-                        if !cap.iter().any(|c| c == "IDLE") {
-                            return Err(imap::error::Error::BadResponse(cap));
-                        }
-                        try!(c.select("INBOX"));
-                        Ok((String::from(a.name), c))
-                    });
+                        .and_then(|mut c| {
+                            try!(c.login(a.username, &a.password));
+                            let cap = try!(c.capability());
+                            if !cap.iter().any(|c| c == "IDLE") {
+                                return Err(imap::error::Error::BadResponse(cap));
+                            }
+                            try!(c.select("INBOX"));
+                            Ok((String::from(a.name), c))
+                        });
 
                 match c {
                     Ok(c) => return Some(c),
@@ -169,7 +171,8 @@ fn main() {
     }
 
     // We have now connected
-    app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_connect.png".to_string()).ok();
+    app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_connect.png".to_string())
+        .ok();
 
     let (tx, rx) = mpsc::channel();
     let mut unseen: Vec<_> = accounts.iter().map(|_| 0).collect();
@@ -181,14 +184,16 @@ fn main() {
 
             loop {
                 // check current state of inbox
-                let unseen = imap_socket.run_command_and_read_response("SEARCH UNSEEN").unwrap();
+                let unseen = imap_socket
+                    .run_command_and_read_response("SEARCH UNSEEN")
+                    .unwrap();
 
                 let mut num_unseen = 0;
                 let mut uids = Vec::new();
                 for line in &unseen {
                     for uid in line.split_whitespace()
-                        .skip(2)
-                        .take_while(|&e| e != "" && e != "Completed") {
+                            .skip(2)
+                            .take_while(|&e| e != "" && e != "Completed") {
                         if let Ok(uid) = usize::from_str_radix(uid, 10) {
                             if notified.insert(uid) {
                                 uids.push(format!("{}", uid));
@@ -213,7 +218,9 @@ fn main() {
                         }
                     };
 
-                    let lines = imap_socket.fetch(&uids.join(","), "RFC822.HEADER").unwrap();
+                    let lines = imap_socket
+                        .fetch(&uids.join(","), "RFC822.HEADER")
+                        .unwrap();
                     let mut message = Vec::new();
                     for line in lines {
                         if line.starts_with("* ") {
@@ -257,11 +264,11 @@ fn main() {
         unseen[i] = num_unseen;
         if unseen.iter().sum::<usize>() == 0 {
             app.set_icon_from_file(&"/usr/share/icons/oxygen/base/32x32/status/mail-unread.png"
-                    .to_string())
+                                         .to_string())
                 .unwrap();
         } else {
             app.set_icon_from_file(&"/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png"
-                    .to_string())
+                                         .to_string())
                 .unwrap();
         }
     }
