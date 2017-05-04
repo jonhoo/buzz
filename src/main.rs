@@ -191,16 +191,14 @@ fn main() {
 
                 let mut num_unseen = 0;
                 let mut uids = Vec::new();
-                for line in &unseen {
-                    for uid in line.split_whitespace()
-                            .skip(2)
-                            .take_while(|&e| e != "" && e != "Completed") {
-                        if let Ok(uid) = usize::from_str_radix(uid, 10) {
-                            if notified.insert(uid) {
-                                uids.push(format!("{}", uid));
-                            }
-                            num_unseen += 1;
+                let unseen = unseen.join(" ");
+                let unseen = unseen.split_whitespace().skip(2);
+                for uid in unseen.take_while(|&e| e != "" && e != "Completed") {
+                    if let Ok(uid) = usize::from_str_radix(uid, 10) {
+                        if notified.insert(uid) {
+                            uids.push(format!("{}", uid));
                         }
+                        num_unseen += 1;
                     }
                 }
 
