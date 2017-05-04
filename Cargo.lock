@@ -1,13 +1,13 @@
 [root]
 name = "buzz"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "imap 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailparse 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "notify-rust 3.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "openssl 0.9.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "rayon 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "systray 0.1.1 (git+https://github.com/qdot/systray-rs.git?branch=linux-core)",
+ "systray 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "xdg 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -873,8 +873,8 @@ dependencies = [
 
 [[package]]
 name = "systray"
-version = "0.1.1"
-source = "git+https://github.com/qdot/systray-rs.git?branch=linux-core#d925438e7f5862a5413b58c0601406e1fbbf872a"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "glib 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1112,7 +1112,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum syntex_errors 0.54.0 (registry+https://github.com/rust-lang/crates.io-index)" = "dee2f6e49c075f71332bb775219d5982bee6732d26227fa1ae1b53cdb12f5cc5"
 "checksum syntex_pos 0.54.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8df3921c7945dfb9ffc53aa35adb2cf4313b5ab5f079c3619b3d4eb82a0efc2b"
 "checksum syntex_syntax 0.54.0 (registry+https://github.com/rust-lang/crates.io-index)" = "dc960085bae44591e22d01f6c0e82a8aec832f8659aca556cdf8ecbdac2bb47b"
-"checksum systray 0.1.1 (git+https://github.com/qdot/systray-rs.git?branch=linux-core)" = "<none>"
+"checksum systray 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "98c63fb7a5c6b5b3ee8bcb768dec32092405fcab5b8f0f35c4605fd656217f77"
 "checksum target_build_utils 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "013d134ae4a25ee744ad6129db589018558f620ddfa44043887cdd45fa08e75c"
 "checksum term 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)" = "d168af3930b369cfe245132550579d47dfd873d69470755a19c2c6568dbbd989"
 "checksum term_size 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e2b6b55df3198cc93372e85dd2ed817f0e38ce8cc0f22eb32391bfad9c4bf209"
