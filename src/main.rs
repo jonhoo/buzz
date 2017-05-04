@@ -7,7 +7,7 @@ extern crate systray;
 extern crate mailparse;
 extern crate notify_rust;
 
-use openssl::ssl::{SslContext, SslMethod};
+use openssl::ssl::{SslConnectorBuilder, SslMethod};
 use imap::client::Client;
 use rayon::prelude::*;
 
@@ -131,17 +131,18 @@ fn main() {
         .filter_map(|a| {
             let mut wait = 1;
             for _ in 0..5 {
-                let c = Client::secure_connect(a.server,
-                                               SslContext::new(SslMethod::Sslv23).unwrap())
-                        .and_then(|mut c| {
-                            try!(c.login(a.username, &a.password));
-                            let cap = try!(c.capability());
-                            if !cap.iter().any(|c| c == "IDLE") {
-                                return Err(imap::error::Error::BadResponse(cap));
-                            }
-                            try!(c.select("INBOX"));
-                            Ok((String::from(a.name), c))
-                        });
+                let tls = SslConnectorBuilder::new(SslMethod::tls())
+                    .unwrap()
+                    .build();
+                let c = Client::secure_connect(a.server, a.server.0, tls).and_then(|mut c| {
+                    try!(c.login(a.username, &a.password));
+                    let cap = try!(c.capability());
+                    if !cap.iter().any(|c| c == "IDLE") {
+                        return Err(imap::error::Error::BadResponse(cap));
+                    }
+                    try!(c.select("INBOX"));
+                    Ok((String::from(a.name), c))
+                });
 
                 match c {
                     Ok(c) => return Some(c),
