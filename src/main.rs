@@ -203,7 +203,7 @@ fn main() {
                 }
 
                 let mut subjects = Vec::new();
-                {
+                if !uids.is_empty() {
                     let mut finish = |message: &[u8]| {
                         if message.is_empty() {
                             return;
