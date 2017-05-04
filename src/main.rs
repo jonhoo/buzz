@@ -204,30 +204,42 @@ fn main() {
 
                 let mut subjects = Vec::new();
                 if !uids.is_empty() {
-                    let mut finish = |message: &[u8]| {
-                        if message.is_empty() {
-                            return;
-                        }
-
-                        if let Ok((headers, _)) = mailparse::parse_headers(message) {
-                            use mailparse::MailHeaderMap;
-                            if let Ok(Some(subject)) = headers.get_first_value("Subject") {
-                                subjects.push(subject);
+                    let mut finish = |message: &[u8]| -> bool {
+                        match mailparse::parse_headers(message) {
+                            Ok((headers, _)) => {
+                                use mailparse::MailHeaderMap;
+                                match headers.get_first_value("Subject") {
+                                    Ok(Some(subject)) => {
+                                        subjects.push(subject);
+                                        return true;
+                                    }
+                                    Ok(None) => {
+                                        subjects.push(String::from("<no subject>"));
+                                        return true;
+                                    }
+                                    Err(e) => {
+                                        println!("failed to get message subject: {:?}", e);
+                                    }
+                                }
                             }
+                            Err(e) => println!("failed to parse headers of message: {:?}", e),
                         }
+                        false
                     };
 
                     let lines = imap_socket
                         .fetch(&uids.join(","), "RFC822.HEADER")
                         .unwrap();
                     let mut message = Vec::new();
-                    for line in lines {
+                    for line in &lines {
                         if line.starts_with("* ") {
-                            finish(&message[..]);
-                            message.clear();
+                            if !message.is_empty() {
+                                finish(&message[..]);
+                                message.clear();
+                            }
                             continue;
                         }
-                        message.extend(line.into_bytes());
+                        message.extend(line.as_bytes());
                     }
                     finish(&message[..]);
                 }
