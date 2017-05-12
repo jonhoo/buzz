@@ -68,31 +68,35 @@ fn main() {
             t.iter()
                 .filter_map(|(name, v)| match v.as_table() {
                                 None => {
-                    println!("Configuration for account {} is broken: not a table", name);
-                    None
-                }
+                                    println!("Configuration for account {} is broken: not a table",
+                                             name);
+                                    None
+                                }
                                 Some(t) => {
-                    let pwcmd = match t.get("pwcmd").and_then(|p| p.as_str()) {
-                        None => return None,
-                        Some(pwcmd) => pwcmd,
-                    };
+                                    let pwcmd = match t.get("pwcmd").and_then(|p| p.as_str()) {
+                                        None => return None,
+                                        Some(pwcmd) => pwcmd,
+                                    };
 
-                    let password = match Command::new("sh").arg("-c").arg(pwcmd).output() {
-                        Ok(output) => String::from_utf8_lossy(&output.stdout).into_owned(),
-                        Err(e) => {
+                                    let password =
+                                        match Command::new("sh").arg("-c").arg(pwcmd).output() {
+                                            Ok(output) => {
+                                                String::from_utf8_lossy(&output.stdout).into_owned()
+                                            }
+                                            Err(e) => {
                             println!("Failed to launch password command for {}: {}", name, e);
                             return None;
                         }
-                    };
+                                        };
 
-                    Some(Account {
-                             name: &name,
-                             server: (t["server"].as_str().unwrap(),
-                                      t["port"].as_integer().unwrap() as u16),
-                             username: t["username"].as_str().unwrap(),
-                             password: password,
-                         })
-                }
+                                    Some(Account {
+                                             name: &name,
+                                             server: (t["server"].as_str().unwrap(),
+                                                      t["port"].as_integer().unwrap() as u16),
+                                             username: t["username"].as_str().unwrap(),
+                                             password: password,
+                                         })
+                                }
                             })
                 .collect()
         }
@@ -131,9 +135,7 @@ fn main() {
         .filter_map(|a| {
             let mut wait = 1;
             for _ in 0..5 {
-                let tls = SslConnectorBuilder::new(SslMethod::tls())
-                    .unwrap()
-                    .build();
+                let tls = SslConnectorBuilder::new(SslMethod::tls()).unwrap().build();
                 let c = Client::secure_connect(a.server, a.server.0, tls).and_then(|mut c| {
                     try!(c.login(a.username, &a.password));
                     let cap = try!(c.capability());
@@ -227,9 +229,7 @@ fn main() {
                         false
                     };
 
-                    let lines = imap_socket
-                        .fetch(&uids.join(","), "RFC822.HEADER")
-                        .unwrap();
+                    let lines = imap_socket.fetch(&uids.join(","), "RFC822.HEADER").unwrap();
                     let mut message = Vec::new();
                     for line in &lines {
                         if line.starts_with("* ") {
