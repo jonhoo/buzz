@@ -42,28 +42,30 @@ fn main() {
             return;
         }
     };
-    let mut f = match File::open(config) {
-        Ok(f) => f,
-        Err(e) => {
-            println!("Could not open configuration file buzz.toml: {}", e);
+    let config = {
+        let mut f = match File::open(config) {
+            Ok(f) => f,
+            Err(e) => {
+                println!("Could not open configuration file buzz.toml: {}", e);
+                return;
+            }
+        };
+        let mut s = String::new();
+        if let Err(e) = f.read_to_string(&mut s) {
+            println!("Could not read configuration file buzz.toml: {}", e);
             return;
         }
-    };
-    let mut s = String::new();
-    if let Err(e) = f.read_to_string(&mut s) {
-        println!("Could not read configuration file buzz.toml: {}", e);
-        return;
-    }
-    let t = match s.parse::<toml::Value>() {
-        Ok(t) => t,
-        Err(e) => {
-            println!("Could not parse configuration file buzz.toml: {}", e);
-            return;
+        match s.parse::<toml::Value>() {
+            Ok(t) => t,
+            Err(e) => {
+                println!("Could not parse configuration file buzz.toml: {}", e);
+                return;
+            }
         }
     };
 
     // Figure out what accounts we have to deal with
-    let accounts: Vec<_> = match t.as_table() {
+    let accounts: Vec<_> = match config.as_table() {
         Some(t) => {
             t.iter()
                 .filter_map(|(name, v)| match v.as_table() {
@@ -90,7 +92,7 @@ fn main() {
                                         };
 
                                     Some(Account {
-                                             name: &name,
+                                             name: name,
                                              server: (t["server"].as_str().unwrap(),
                                                       t["port"].as_integer().unwrap() as u16),
                                              username: t["username"].as_str().unwrap(),
@@ -132,31 +134,32 @@ fn main() {
 
     let accounts: Vec<_> = accounts
         .par_iter()
-        .filter_map(|a| {
+        .filter_map(|account| {
             let mut wait = 1;
             for _ in 0..5 {
                 let tls = SslConnectorBuilder::new(SslMethod::tls()).unwrap().build();
-                let c = Client::secure_connect(a.server, a.server.0, tls).and_then(|mut c| {
-                    try!(c.login(a.username, &a.password));
-                    let cap = try!(c.capability());
-                    if !cap.iter().any(|c| c == "IDLE") {
-                        return Err(imap::error::Error::BadResponse(cap));
-                    }
-                    try!(c.select("INBOX"));
-                    Ok((String::from(a.name), c))
-                });
+                let c = Client::secure_connect(account.server, account.server.0, tls)
+                    .and_then(|mut c| {
+                        try!(c.login(account.username, &account.password));
+                        let cap = try!(c.capability());
+                        if !cap.iter().any(|c| c == "IDLE") {
+                            return Err(imap::error::Error::BadResponse(cap));
+                        }
+                        try!(c.select("INBOX"));
+                        Ok((String::from(account.name), c))
+                    });
 
                 match c {
                     Ok(c) => return Some(c),
                     Err(imap::error::Error::Io(e)) => {
                         println!("Failed to connect account {}: {}; retrying in {}s",
-                                 a.name,
+                                 account.name,
                                  e,
                                  wait);
                         thread::sleep(Duration::from_secs(wait));
                     }
                     Err(e) => {
-                        println!("{} host produced bad IMAP tunnel: {}", a.name, e);
+                        println!("{} host produced bad IMAP tunnel: {}", account.name, e);
                         break;
                     }
                 }
