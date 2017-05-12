@@ -187,9 +187,12 @@ fn main() {
 
             loop {
                 // check current state of inbox
-                let unseen = imap_socket
+                let mut unseen = imap_socket
                     .run_command_and_read_response("SEARCH UNSEEN")
                     .unwrap();
+
+                // remove last line of response (OK Completed)
+                unseen.pop();
 
                 let mut num_unseen = 0;
                 let mut uids = Vec::new();
