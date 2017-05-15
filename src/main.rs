@@ -186,12 +186,12 @@ fn main() {
         let tx = tx.clone();
         thread::spawn(move || {
             // Keep track of all the e-mails we have already notified about
-            let mut notified = HashSet::new();
+            let mut last_notified = 0;
 
             loop {
                 // check current state of inbox
                 let mut unseen = imap_socket
-                    .run_command_and_read_response("SEARCH UNSEEN")
+                    .run_command_and_read_response("UID SEARCH UNSEEN 1:*")
                     .unwrap();
 
                 // remove last line of response (OK Completed)
@@ -203,7 +203,8 @@ fn main() {
                 let unseen = unseen.split_whitespace().skip(2);
                 for uid in unseen.take_while(|&e| e != "" && e != "Completed") {
                     if let Ok(uid) = usize::from_str_radix(uid, 10) {
-                        if notified.insert(uid) {
+                        if uid > last_notified {
+                            last_notified = uid;
                             uids.push(format!("{}", uid));
                         }
                         num_unseen += 1;
@@ -235,7 +236,9 @@ fn main() {
                         false
                     };
 
-                    let lines = imap_socket.fetch(&uids.join(","), "RFC822.HEADER").unwrap();
+                    let lines = imap_socket
+                        .uid_fetch(&uids.join(","), "RFC822.HEADER")
+                        .unwrap();
                     let mut message = Vec::new();
                     for line in &lines {
                         if line.starts_with("* ") {
