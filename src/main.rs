@@ -257,6 +257,8 @@ fn main() {
                     use notify_rust::{Notification, NotificationHint};
                     let title = format!("@{} has new mail ({} unseen)", account, num_unseen);
                     let notification = format!("> {}", subjects.join("\n> "));
+                    println!("! {}", title);
+                    println!("{}", notification);
                     Notification::new()
                         .summary(&title)
                         .body(&notification)
