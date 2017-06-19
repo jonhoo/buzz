@@ -11,7 +11,6 @@ use openssl::ssl::{SslConnectorBuilder, SslMethod};
 use imap::client::Client;
 use rayon::prelude::*;
 
-use std::collections::HashSet;
 use std::process::Command;
 use std::io::prelude::*;
 use std::time::Duration;
