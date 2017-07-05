@@ -16,7 +16,7 @@ categories = ["command-line-utilities", "email"]
 license = "MIT/Apache-2.0"
 
 [dependencies]
-imap = "0.3.1"
+imap = "0.3.2"
 openssl = "0.9.11"
 systray = "0.2.0"
 mailparse = "0.5.1"
