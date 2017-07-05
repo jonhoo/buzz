@@ -68,37 +68,35 @@ fn main() {
         Some(t) => {
             t.iter()
                 .filter_map(|(name, v)| match v.as_table() {
-                                None => {
-                                    println!("Configuration for account {} is broken: not a table",
-                                             name);
-                                    None
-                                }
-                                Some(t) => {
-                                    let pwcmd = match t.get("pwcmd").and_then(|p| p.as_str()) {
-                                        None => return None,
-                                        Some(pwcmd) => pwcmd,
-                                    };
+                    None => {
+                        println!("Configuration for account {} is broken: not a table", name);
+                        None
+                    }
+                    Some(t) => {
+                        let pwcmd = match t.get("pwcmd").and_then(|p| p.as_str()) {
+                            None => return None,
+                            Some(pwcmd) => pwcmd,
+                        };
 
-                                    let password =
-                                        match Command::new("sh").arg("-c").arg(pwcmd).output() {
-                                            Ok(output) => {
-                                                String::from_utf8_lossy(&output.stdout).into_owned()
-                                            }
-                                            Err(e) => {
-                            println!("Failed to launch password command for {}: {}", name, e);
-                            return None;
-                        }
-                                        };
+                        let password = match Command::new("sh").arg("-c").arg(pwcmd).output() {
+                            Ok(output) => String::from_utf8_lossy(&output.stdout).into_owned(),
+                            Err(e) => {
+                                println!("Failed to launch password command for {}: {}", name, e);
+                                return None;
+                            }
+                        };
 
-                                    Some(Account {
-                                             name: name,
-                                             server: (t["server"].as_str().unwrap(),
-                                                      t["port"].as_integer().unwrap() as u16),
-                                             username: t["username"].as_str().unwrap(),
-                                             password: password,
-                                         })
-                                }
-                            })
+                        Some(Account {
+                            name: name,
+                            server: (
+                                t["server"].as_str().unwrap(),
+                                t["port"].as_integer().unwrap() as u16,
+                            ),
+                            username: t["username"].as_str().unwrap(),
+                            password: password,
+                        })
+                    }
+                })
                 .collect()
         }
         None => {
@@ -120,8 +118,9 @@ fn main() {
             return;
         }
     };
-    if let Err(e) = app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_disconnect.png"
-                                                .to_string()) {
+    if let Err(e) = app.set_icon_from_file(
+        &"/usr/share/icons/Faenza/stock/24/stock_disconnect.png".to_string(),
+    ) {
         println!("Could not set application icon: {}", e);
     }
     if let Err(e) = app.add_menu_item(&"Quit".to_string(), |window| { window.quit(); }) {
@@ -151,10 +150,12 @@ fn main() {
                 match c {
                     Ok(c) => return Some(c),
                     Err(imap::error::Error::Io(e)) => {
-                        println!("Failed to connect account {}: {}; retrying in {}s",
-                                 account.name,
-                                 e,
-                                 wait);
+                        println!(
+                            "Failed to connect account {}: {}; retrying in {}s",
+                            account.name,
+                            e,
+                            wait
+                        );
                         thread::sleep(Duration::from_secs(wait));
                     }
                     Err(e) => {
@@ -176,7 +177,8 @@ fn main() {
     }
 
     // We have now connected
-    app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_connect.png".to_string())
+    app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_connect.png"
+        .to_string())
         .ok();
 
     let (tx, rx) = mpsc::channel();
@@ -285,12 +287,12 @@ fn main() {
         unseen[i] = num_unseen;
         if unseen.iter().sum::<usize>() == 0 {
             app.set_icon_from_file(&"/usr/share/icons/oxygen/base/32x32/status/mail-unread.png"
-                                         .to_string())
+                .to_string())
                 .unwrap();
         } else {
-            app.set_icon_from_file(&"/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png"
-                                         .to_string())
-                .unwrap();
+            app.set_icon_from_file(
+                &"/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png".to_string(),
+            ).unwrap();
         }
     }
 }
