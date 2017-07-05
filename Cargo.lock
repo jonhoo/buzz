@@ -6,9 +6,9 @@ dependencies = [
  "mailparse 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "notify-rust 3.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "openssl 0.9.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "rayon 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rayon 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "systray 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "toml 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "toml 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "xdg 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -797,7 +797,7 @@ dependencies = [
 
 [[package]]
 name = "rayon"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "rayon-core 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1004,7 +1004,7 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "serde 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1160,7 +1160,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum quasi_codegen 0.29.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b06172e92ab0099427609854ffb1512c377be5fc4beaf572ae5d5a01b8359596"
 "checksum quoted_printable 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ebb55456d1e18dddfac0fedcc552ed3f690a645c5629b39e1a9d2ae544313178"
 "checksum rand 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)" = "022e0636ec2519ddae48154b028864bdce4eaf7d35226ab8e65c611be97b189d"
-"checksum rayon 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "705cf28d52a26a9ab548930a9a3d9799eb77cf84d66d7cc6e52fa222ca662424"
+"checksum rayon 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)" = "b614fe08b6665cb9a231d07ac1364b0ef3cb3698f1239ee0c4c3a88a524f54c8"
 "checksum rayon-core 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7febc28567082c345f10cddc3612c6ea020fc3297a1977d472cf9fdb73e6e493"
 "checksum redox_syscall 0.1.18 (registry+https://github.com/rust-lang/crates.io-index)" = "3041aeb6000db123d2c9c751433f526e1f404b23213bd733167ab770c3989b4d"
 "checksum regex 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "1731164734096285ec2a5ec7fea5248ae2f5485b3feeb0115af4fda2183b2d1b"
@@ -1184,7 +1184,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum thread-id 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8df7875b676fddfadffd96deea3b1124e5ede707d4884248931077518cf1f773"
 "checksum thread_local 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "c85048c6260d17cf486ceae3282d9fb6b90be220bf5b28c400f5485ffc29f0c7"
 "checksum time 0.1.37 (registry+https://github.com/rust-lang/crates.io-index)" = "ffd7ccbf969a892bf83f1e441126968a07a3941c24ff522a26af9f9f4585d1a3"
-"checksum toml 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4cc5dbfb20a481e64b99eb7ae280859ec76730c7191570ba5edaa962394edb0a"
+"checksum toml 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "b0601da6c97135c8d330c7a13a013ca6cd4143221b01de2f8d4edc50a9e551c7"
 "checksum unicode-segmentation 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a8083c594e02b8ae1654ae26f0ade5158b119bd88ad0e8227a5d8fcd72407946"
 "checksum unicode-width 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "bf3a113775714a22dcb774d8ea3655c53a32debae63a063acc00a91cc586245f"
 "checksum unicode-xid 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "8c1f860d7d29cf02cb2f3f359fd35991af3d30bac52c57d265a3c461074cb4dc"
