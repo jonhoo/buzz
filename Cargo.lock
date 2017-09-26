@@ -1,6 +1,6 @@
 [root]
 name = "buzz"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "imap 0.3.3 (git+https://github.com/jonhoo/rust-imap.git?branch=better-io)",
  "mailparse 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",

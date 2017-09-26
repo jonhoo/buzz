@@ -7,22 +7,181 @@ extern crate systray;
 extern crate toml;
 extern crate xdg;
 
-use openssl::ssl::{SslConnectorBuilder, SslMethod};
+use openssl::ssl::{SslConnectorBuilder, SslMethod, SslStream};
 use imap::client::Client;
 use rayon::prelude::*;
 
 use std::process::Command;
 use std::io::prelude::*;
+use std::net::TcpStream;
 use std::time::Duration;
 use std::sync::mpsc;
 use std::fs::File;
 use std::thread;
 
-struct Account<'a> {
-    name: &'a str,
-    server: (&'a str, u16),
-    username: &'a str,
+#[derive(Clone)]
+struct Account {
+    name: String,
+    server: (String, u16),
+    username: String,
     password: String,
+}
+
+impl Account {
+    pub fn connect(&self) -> Result<Connection<SslStream<TcpStream>>, imap::error::Error> {
+        let tls = SslConnectorBuilder::new(SslMethod::tls()).unwrap().build();
+        Client::secure_connect((&*self.server.0, self.server.1), &self.server.0, tls).and_then(
+            |mut c| {
+                try!(c.login(&self.username, &self.password));
+                let cap = try!(c.capability());
+                if !cap.iter().any(|c| c == "IDLE") {
+                    return Err(imap::error::Error::BadResponse(cap));
+                }
+                try!(c.select("INBOX"));
+                Ok(Connection {
+                    account: self.clone(),
+                    socket: c,
+                })
+            },
+        )
+    }
+}
+
+struct Connection<T: Read + Write> {
+    account: Account,
+    socket: Client<T>,
+}
+
+impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
+    pub fn handle(mut self, account: usize, mut tx: mpsc::Sender<(usize, usize)>) {
+        loop {
+            if let Err(_) = self.check(account, &mut tx) {
+                // the connection has failed for some reason
+                // try to log out (we probably can't)
+                self.socket.logout().is_err();
+                break;
+            }
+        }
+
+        // try to reconnect
+        let mut wait = 1;
+        for _ in 0..5 {
+            println!(
+                "connection to {} lost; trying to reconnect...",
+                self.account.name
+            );
+            match self.account.connect() {
+                Ok(c) => {
+                    println!("{} connection reestablished", self.account.name);
+                    return c.handle(account, tx);
+                }
+                Err(imap::error::Error::Io(_)) => {
+                    thread::sleep(Duration::from_secs(wait));
+                }
+                Err(_) => break,
+            }
+
+            wait *= 2;
+        }
+    }
+
+    fn check(
+        &mut self,
+        account: usize,
+        tx: &mut mpsc::Sender<(usize, usize)>,
+    ) -> Result<(), imap::error::Error> {
+        // Keep track of all the e-mails we have already notified about
+        let mut last_notified = 0;
+
+        loop {
+            // check current state of inbox
+            let mut unseen = self.socket
+                .run_command_and_read_response("UID SEARCH UNSEEN 1:*")?;
+
+            // remove last line of response (OK Completed)
+            unseen.pop();
+
+            let mut num_unseen = 0;
+            let mut uids = Vec::new();
+            let unseen = unseen.join(" ");
+            let unseen = unseen.split_whitespace().skip(2);
+            for uid in unseen.take_while(|&e| e != "" && e != "Completed") {
+                if let Ok(uid) = usize::from_str_radix(uid, 10) {
+                    if uid > last_notified {
+                        last_notified = uid;
+                        uids.push(format!("{}", uid));
+                    }
+                    num_unseen += 1;
+                }
+            }
+
+            let mut subjects = Vec::new();
+            if !uids.is_empty() {
+                let mut finish = |message: &[u8]| -> bool {
+                    match mailparse::parse_headers(message) {
+                        Ok((headers, _)) => {
+                            use mailparse::MailHeaderMap;
+                            match headers.get_first_value("Subject") {
+                                Ok(Some(subject)) => {
+                                    subjects.push(subject);
+                                    return true;
+                                }
+                                Ok(None) => {
+                                    subjects.push(String::from("<no subject>"));
+                                    return true;
+                                }
+                                Err(e) => {
+                                    println!("failed to get message subject: {:?}", e);
+                                }
+                            }
+                        }
+                        Err(e) => println!("failed to parse headers of message: {:?}", e),
+                    }
+                    false
+                };
+
+                let lines = self.socket.uid_fetch(&uids.join(","), "RFC822.HEADER")?;
+                let mut message = Vec::new();
+                for line in &lines {
+                    if line.starts_with("* ") {
+                        if !message.is_empty() {
+                            finish(&message[..]);
+                            message.clear();
+                        }
+                        continue;
+                    }
+                    message.extend(line.as_bytes());
+                }
+                finish(&message[..]);
+            }
+
+            if !subjects.is_empty() {
+                use notify_rust::{Notification, NotificationHint};
+                let title = format!(
+                    "@{} has new mail ({} unseen)",
+                    self.account.name,
+                    num_unseen
+                );
+                let notification = format!("> {}", subjects.join("\n> "));
+                println!("! {}", title);
+                println!("{}", notification);
+                Notification::new()
+                    .summary(&title)
+                    .body(&notification)
+                    .icon("notification-message-email")
+                    .hint(NotificationHint::Category("email".to_owned()))
+                    .timeout(-1)
+                    .show()
+                    .expect("failed to launch notify-send");
+            }
+
+            tx.send((account, num_unseen)).unwrap();
+
+            // IDLE until we see changes
+            let mut idle = self.socket.idle()?;
+            idle.wait_keepalive()?;
+        }
+    }
 }
 
 fn main() {
@@ -86,12 +245,12 @@ fn main() {
                     };
 
                     Some(Account {
-                        name: name,
+                        name: name.as_str().to_owned(),
                         server: (
-                            t["server"].as_str().unwrap(),
+                            t["server"].as_str().unwrap().to_owned(),
                             t["port"].as_integer().unwrap() as u16,
                         ),
-                        username: t["username"].as_str().unwrap(),
+                        username: t["username"].as_str().unwrap().to_owned(),
                         password: password,
                     })
                 }
@@ -135,20 +294,7 @@ fn main() {
         .filter_map(|account| {
             let mut wait = 1;
             for _ in 0..5 {
-                let tls = SslConnectorBuilder::new(SslMethod::tls()).unwrap().build();
-                let c = Client::secure_connect(account.server, account.server.0, tls).and_then(
-                    |mut c| {
-                        try!(c.login(account.username, &account.password));
-                        let cap = try!(c.capability());
-                        if !cap.iter().any(|c| c == "IDLE") {
-                            return Err(imap::error::Error::BadResponse(cap));
-                        }
-                        try!(c.select("INBOX"));
-                        Ok((String::from(account.name), c))
-                    },
-                );
-
-                match c {
+                match account.connect() {
                     Ok(c) => return Some(c),
                     Err(imap::error::Error::Io(e)) => {
                         println!(
@@ -184,105 +330,10 @@ fn main() {
 
     let (tx, rx) = mpsc::channel();
     let mut unseen: Vec<_> = accounts.iter().map(|_| 0).collect();
-    for (i, (account, mut imap_socket)) in accounts.into_iter().enumerate() {
+    for (i, conn) in accounts.into_iter().enumerate() {
         let tx = tx.clone();
         thread::spawn(move || {
-            // Keep track of all the e-mails we have already notified about
-            let mut last_notified = 0;
-
-            loop {
-                // check current state of inbox
-                let mut unseen = imap_socket
-                    .run_command_and_read_response("UID SEARCH UNSEEN 1:*")
-                    .unwrap();
-
-                // remove last line of response (OK Completed)
-                unseen.pop();
-
-                let mut num_unseen = 0;
-                let mut uids = Vec::new();
-                let unseen = unseen.join(" ");
-                let unseen = unseen.split_whitespace().skip(2);
-                for uid in unseen.take_while(|&e| e != "" && e != "Completed") {
-                    if let Ok(uid) = usize::from_str_radix(uid, 10) {
-                        if uid > last_notified {
-                            last_notified = uid;
-                            uids.push(format!("{}", uid));
-                        }
-                        num_unseen += 1;
-                    }
-                }
-
-                let mut subjects = Vec::new();
-                if !uids.is_empty() {
-                    let mut finish = |message: &[u8]| -> bool {
-                        match mailparse::parse_headers(message) {
-                            Ok((headers, _)) => {
-                                use mailparse::MailHeaderMap;
-                                match headers.get_first_value("Subject") {
-                                    Ok(Some(subject)) => {
-                                        subjects.push(subject);
-                                        return true;
-                                    }
-                                    Ok(None) => {
-                                        subjects.push(String::from("<no subject>"));
-                                        return true;
-                                    }
-                                    Err(e) => {
-                                        println!("failed to get message subject: {:?}", e);
-                                    }
-                                }
-                            }
-                            Err(e) => println!("failed to parse headers of message: {:?}", e),
-                        }
-                        false
-                    };
-
-                    let lines = imap_socket
-                        .uid_fetch(&uids.join(","), "RFC822.HEADER")
-                        .unwrap();
-                    let mut message = Vec::new();
-                    for line in &lines {
-                        if line.starts_with("* ") {
-                            if !message.is_empty() {
-                                finish(&message[..]);
-                                message.clear();
-                            }
-                            continue;
-                        }
-                        message.extend(line.as_bytes());
-                    }
-                    finish(&message[..]);
-                }
-
-                if !subjects.is_empty() {
-                    use notify_rust::{Notification, NotificationHint};
-                    let title = format!("@{} has new mail ({} unseen)", account, num_unseen);
-                    let notification = format!("> {}", subjects.join("\n> "));
-                    println!("! {}", title);
-                    println!("{}", notification);
-                    Notification::new()
-                        .summary(&title)
-                        .body(&notification)
-                        .icon("notification-message-email")
-                        .hint(NotificationHint::Category("email".to_owned()))
-                        .timeout(-1)
-                        .show()
-                        .expect("failed to launch notify-send");
-                }
-
-                tx.send((i, num_unseen)).unwrap();
-
-                // IDLE until we see changes
-                let mut idle = imap_socket.idle().unwrap();
-                if let Err(e) = idle.wait_keepalive() {
-                    println!("IDLE failed: {:?}", e);
-                    break;
-                }
-            }
-            // TODO: this call will likely fail, since the connection has probably failed
-            // TODO: reconnect
-            imap_socket.logout().unwrap();
+            conn.handle(i, tx);
         });
     }
 
