@@ -1,11 +1,11 @@
-extern crate xdg;
-extern crate toml;
 extern crate imap;
-extern crate rayon;
-extern crate openssl;
-extern crate systray;
 extern crate mailparse;
 extern crate notify_rust;
+extern crate openssl;
+extern crate rayon;
+extern crate systray;
+extern crate toml;
+extern crate xdg;
 
 use openssl::ssl::{SslConnectorBuilder, SslMethod};
 use imap::client::Client;
@@ -116,12 +116,14 @@ fn main() {
             return;
         }
     };
-    if let Err(e) = app.set_icon_from_file(
-        &"/usr/share/icons/Faenza/stock/24/stock_disconnect.png".to_string(),
-    ) {
+    if let Err(e) = app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_disconnect.png"
+        .to_string())
+    {
         println!("Could not set application icon: {}", e);
     }
-    if let Err(e) = app.add_menu_item(&"Quit".to_string(), |window| { window.quit(); }) {
+    if let Err(e) = app.add_menu_item(&"Quit".to_string(), |window| {
+        window.quit();
+    }) {
         println!("Could not add application Quit menu option: {}", e);
     }
 
@@ -134,8 +136,8 @@ fn main() {
             let mut wait = 1;
             for _ in 0..5 {
                 let tls = SslConnectorBuilder::new(SslMethod::tls()).unwrap().build();
-                let c = Client::secure_connect(account.server, account.server.0, tls)
-                    .and_then(|mut c| {
+                let c = Client::secure_connect(account.server, account.server.0, tls).and_then(
+                    |mut c| {
                         try!(c.login(account.username, &account.password));
                         let cap = try!(c.capability());
                         if !cap.iter().any(|c| c == "IDLE") {
@@ -143,7 +145,8 @@ fn main() {
                         }
                         try!(c.select("INBOX"));
                         Ok((String::from(account.name), c))
-                    });
+                    },
+                );
 
                 match c {
                     Ok(c) => return Some(c),
@@ -277,6 +280,8 @@ fn main() {
                     break;
                 }
             }
+            // TODO: this call will likely fail, since the connection has probably failed
+            // TODO: reconnect
             imap_socket.logout().unwrap();
         });
     }
