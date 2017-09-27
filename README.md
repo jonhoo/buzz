@@ -11,6 +11,13 @@ This project is a Rust fork of
 [hasmail](https://github.com/jonhoo/hasmail), which provides basically
 the same features, and is written in Go.
 
+## What does it look like:
+
+![no new e-mail](assets/no-email.png?raw=true)
+![new e-mail](assets/new-email.png?raw=true)
+
+![new e-mail notification](assets/notification.png?raw=true)
+
 # Configuration
 
 buzz looks for a
