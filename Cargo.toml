@@ -1,6 +1,6 @@
 [package]
 name = "buzz"
-version = "1.0.2"
+version = "1.0.3"
 
 description = "A simple system tray application for notifying about unseen e-mail"
 readme = "README.md"
@@ -19,9 +19,7 @@ license = "MIT/Apache-2.0"
 debug=true
 
 [dependencies]
-#imap = "0.3.2"
-# Fixes for https://github.com/mattnenterprise/rust-imap/issues/38
-imap = { git = "https://github.com/jonhoo/rust-imap.git", branch = "better-io" }
+imap = "0.4.0"
 openssl = "0.9.14"
 systray = "0.2.0"
 mailparse = "0.5.1"
