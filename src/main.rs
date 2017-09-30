@@ -178,8 +178,7 @@ impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
             tx.send((account, num_unseen)).unwrap();
 
             // IDLE until we see changes
-            let mut idle = self.socket.idle()?;
-            idle.wait_keepalive()?;
+            self.socket.idle()?.wait_keepalive()?;
         }
     }
 }
