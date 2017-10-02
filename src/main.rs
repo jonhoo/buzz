@@ -1,13 +1,13 @@
 extern crate imap;
 extern crate mailparse;
+extern crate native_tls;
 extern crate notify_rust;
-extern crate openssl;
 extern crate rayon;
 extern crate systray;
 extern crate toml;
 extern crate xdg;
 
-use openssl::ssl::{SslConnectorBuilder, SslMethod, SslStream};
+use native_tls::{TlsConnector, TlsStream};
 use imap::client::Client;
 use rayon::prelude::*;
 
@@ -28,8 +28,8 @@ struct Account {
 }
 
 impl Account {
-    pub fn connect(&self) -> Result<Connection<SslStream<TcpStream>>, imap::error::Error> {
-        let tls = SslConnectorBuilder::new(SslMethod::tls()).unwrap().build();
+    pub fn connect(&self) -> Result<Connection<TlsStream<TcpStream>>, imap::error::Error> {
+        let tls = TlsConnector::builder()?.build()?;
         Client::secure_connect((&*self.server.0, self.server.1), &self.server.0, tls).and_then(
             |mut c| {
                 try!(c.login(&self.username, &self.password));
