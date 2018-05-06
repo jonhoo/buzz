@@ -7,17 +7,17 @@ extern crate systray;
 extern crate toml;
 extern crate xdg;
 
-use native_tls::{TlsConnector, TlsStream};
 use imap::client::Client;
+use native_tls::{TlsConnector, TlsStream};
 use rayon::prelude::*;
 
-use std::process::Command;
+use std::fs::File;
 use std::io::prelude::*;
 use std::net::TcpStream;
-use std::time::Duration;
+use std::process::Command;
 use std::sync::mpsc;
-use std::fs::File;
 use std::thread;
+use std::time::Duration;
 
 #[derive(Clone)]
 struct Account {
@@ -30,12 +30,14 @@ struct Account {
 impl Account {
     pub fn connect(&self) -> Result<Connection<TlsStream<TcpStream>>, imap::error::Error> {
         let tls = TlsConnector::builder()?.build()?;
-        Client::secure_connect((&*self.server.0, self.server.1), &self.server.0, tls).and_then(
+        Client::secure_connect((&*self.server.0, self.server.1), &self.server.0, &tls).and_then(
             |mut c| {
-                try!(c.login(&self.username, &self.password));
-                let cap = try!(c.capability());
-                if !cap.iter().any(|c| c == "IDLE") {
-                    return Err(imap::error::Error::BadResponse(cap));
+                try!(c.login(self.username.trim(), self.password.trim()));
+                let cap = try!(c.capabilities());
+                if !cap.iter().any(|&c| c == "IDLE") {
+                    return Err(imap::error::Error::BadResponse(
+                        cap.iter().cloned().collect(),
+                    ));
                 }
                 try!(c.select("INBOX"));
                 Ok(Connection {
@@ -103,7 +105,7 @@ impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
 
             let mut num_unseen = 0;
             let mut uids = Vec::new();
-            let unseen = unseen.join(" ");
+            let unseen = ::std::str::from_utf8(&unseen[..]).unwrap();
             let unseen = unseen.split_whitespace().skip(2);
             for uid in unseen.take_while(|&e| e != "" && e != "Completed") {
                 if let Ok(uid) = usize::from_str_radix(uid, 10) {
@@ -117,18 +119,24 @@ impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
 
             let mut subjects = Vec::new();
             if !uids.is_empty() {
-                let mut finish = |message: &[u8]| -> bool {
-                    match mailparse::parse_headers(message) {
+                for msg in self.socket
+                    .uid_fetch(&uids.join(","), "RFC822.HEADER")?
+                    .iter()
+                {
+                    let msg = msg.rfc822_header();
+                    if msg.is_none() {
+                        continue;
+                    }
+
+                    match mailparse::parse_headers(msg.unwrap()) {
                         Ok((headers, _)) => {
                             use mailparse::MailHeaderMap;
                             match headers.get_first_value("Subject") {
                                 Ok(Some(subject)) => {
                                     subjects.push(subject);
-                                    return true;
                                 }
                                 Ok(None) => {
                                     subjects.push(String::from("<no subject>"));
-                                    return true;
                                 }
                                 Err(e) => {
                                     println!("failed to get message subject: {:?}", e);
@@ -137,30 +145,14 @@ impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
                         }
                         Err(e) => println!("failed to parse headers of message: {:?}", e),
                     }
-                    false
-                };
-
-                let lines = self.socket.uid_fetch(&uids.join(","), "RFC822.HEADER")?;
-                let mut message = Vec::new();
-                for line in &lines {
-                    if line.starts_with("* ") {
-                        if !message.is_empty() {
-                            finish(&message[..]);
-                            message.clear();
-                        }
-                        continue;
-                    }
-                    message.extend(line.as_bytes());
                 }
-                finish(&message[..]);
             }
 
             if !subjects.is_empty() {
                 use notify_rust::{Notification, NotificationHint};
                 let title = format!(
                     "@{} has new mail ({} unseen)",
-                    self.account.name,
-                    num_unseen
+                    self.account.name, num_unseen
                 );
                 let notification = format!("> {}", subjects.join("\n> "));
                 println!("! {}", title);
@@ -274,8 +266,8 @@ fn main() {
             return;
         }
     };
-    if let Err(e) = app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_disconnect.png"
-        .to_string())
+    if let Err(e) =
+        app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_disconnect.png".to_string())
     {
         println!("Could not set application icon: {}", e);
     }
@@ -298,14 +290,12 @@ fn main() {
                     Err(imap::error::Error::Io(e)) => {
                         println!(
                             "Failed to connect account {}: {}; retrying in {}s",
-                            account.name,
-                            e,
-                            wait
+                            account.name, e, wait
                         );
                         thread::sleep(Duration::from_secs(wait));
                     }
                     Err(e) => {
-                        println!("{} host produced bad IMAP tunnel: {}", account.name, e);
+                        println!("{} host produced bad IMAP tunnel: {:?}", account.name, e);
                         break;
                     }
                 }
@@ -323,8 +313,7 @@ fn main() {
     }
 
     // We have now connected
-    app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_connect.png"
-        .to_string())
+    app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_connect.png".to_string())
         .ok();
 
     let (tx, rx) = mpsc::channel();
@@ -339,8 +328,7 @@ fn main() {
     for (i, num_unseen) in rx {
         unseen[i] = num_unseen;
         if unseen.iter().sum::<usize>() == 0 {
-            app.set_icon_from_file(&"/usr/share/icons/oxygen/base/32x32/status/mail-unread.png"
-                .to_string())
+            app.set_icon_from_file(&"/usr/share/icons/oxygen/base/32x32/status/mail-unread.png".to_string())
                 .unwrap();
         } else {
             app.set_icon_from_file(
