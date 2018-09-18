@@ -97,7 +97,8 @@ impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
 
         loop {
             // check current state of inbox
-            let mut unseen = self.socket
+            let mut unseen = self
+                .socket
                 .run_command_and_read_response("UID SEARCH UNSEEN 1:*")?;
 
             // remove last line of response (OK Completed)
@@ -119,7 +120,8 @@ impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
 
             let mut subjects = Vec::new();
             if !uids.is_empty() {
-                for msg in self.socket
+                for msg in self
+                    .socket
                     .uid_fetch(&uids.join(","), "RFC822.HEADER")?
                     .iter()
                 {
@@ -215,7 +217,8 @@ fn main() {
 
     // Figure out what accounts we have to deal with
     let accounts: Vec<_> = match config.as_table() {
-        Some(t) => t.iter()
+        Some(t) => t
+            .iter()
             .filter_map(|(name, v)| match v.as_table() {
                 None => {
                     println!("Configuration for account {} is broken: not a table", name);
@@ -245,8 +248,7 @@ fn main() {
                         password: password,
                     })
                 }
-            })
-            .collect(),
+            }).collect(),
         None => {
             println!("Could not parse configuration file buzz.toml: not a table");
             return;
@@ -304,8 +306,7 @@ fn main() {
             }
 
             None
-        })
-        .collect();
+        }).collect();
 
     if accounts.is_empty() {
         println!("No accounts in config worked; exiting...");
@@ -328,8 +329,9 @@ fn main() {
     for (i, num_unseen) in rx {
         unseen[i] = num_unseen;
         if unseen.iter().sum::<usize>() == 0 {
-            app.set_icon_from_file(&"/usr/share/icons/oxygen/base/32x32/status/mail-unread.png".to_string())
-                .unwrap();
+            app.set_icon_from_file(
+                &"/usr/share/icons/oxygen/base/32x32/status/mail-unread.png".to_string(),
+            ).unwrap();
         } else {
             app.set_icon_from_file(
                 &"/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png".to_string(),
