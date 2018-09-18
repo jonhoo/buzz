@@ -19,8 +19,8 @@ license = "MIT/Apache-2.0"
 debug=true
 
 [dependencies]
-imap = "0.8.1"
-native-tls = "0.1"
+imap = { git = "https://github.com/mattnenterprise/rust-imap.git" }
+native-tls = "0.2"
 systray = "0.3.0"
 mailparse = "0.6.0"
 toml = "0.4.2"

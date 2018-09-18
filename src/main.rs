@@ -7,7 +7,6 @@ extern crate systray;
 extern crate toml;
 extern crate xdg;
 
-use imap::client::Client;
 use native_tls::{TlsConnector, TlsStream};
 use rayon::prelude::*;
 
@@ -29,10 +28,13 @@ struct Account {
 
 impl Account {
     pub fn connect(&self) -> Result<Connection<TlsStream<TcpStream>>, imap::error::Error> {
-        let tls = TlsConnector::builder()?.build()?;
-        Client::secure_connect((&*self.server.0, self.server.1), &self.server.0, &tls).and_then(
-            |mut c| {
-                try!(c.login(self.username.trim(), self.password.trim()));
+        let tls = TlsConnector::builder().build()?;
+        imap::client::secure_connect((&*self.server.0, self.server.1), &self.server.0, &tls)
+            .and_then(|c| {
+                let mut c = try!(
+                    c.login(self.username.trim(), self.password.trim())
+                        .map_err(|(e, _)| e)
+                );
                 let cap = try!(c.capabilities());
                 if !cap.iter().any(|&c| c == "IDLE") {
                     return Err(imap::error::Error::BadResponse(
@@ -44,14 +46,13 @@ impl Account {
                     account: self.clone(),
                     socket: c,
                 })
-            },
-        )
+            })
     }
 }
 
 struct Connection<T: Read + Write> {
     account: Account,
-    socket: Client<T>,
+    socket: imap::client::Session<T>,
 }
 
 impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
