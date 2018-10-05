@@ -98,26 +98,15 @@ impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
 
         loop {
             // check current state of inbox
-            let mut unseen = self
-                .socket
-                .run_command_and_read_response("UID SEARCH UNSEEN 1:*")?;
-
-            // remove last line of response (OK Completed)
-            unseen.pop();
-
             let mut num_unseen = 0;
-            let mut uids = Vec::new();
-            let unseen = ::std::str::from_utf8(&unseen[..]).unwrap();
-            let unseen = unseen.split_whitespace().skip(2);
-            for uid in unseen.take_while(|&e| e != "" && e != "Completed") {
-                if let Ok(uid) = usize::from_str_radix(uid, 10) {
-                    if uid > last_notified {
-                        last_notified = uid;
-                        uids.push(format!("{}", uid));
-                    }
-                    num_unseen += 1;
+            let uids = self.socket.uid_search("UNSEEN 1:*")?;
+            for &uid in &uids {
+                if uid > last_notified {
+                    last_notified = uid;
                 }
+                num_unseen += 1;
             }
+            let uids: Vec<_> = uids.into_iter().map(|v: u32| String::from(v)).collect();
 
             let mut subjects = Vec::new();
             if !uids.is_empty() {
@@ -249,7 +238,8 @@ fn main() {
                         password: password,
                     })
                 }
-            }).collect(),
+            })
+            .collect(),
         None => {
             println!("Could not parse configuration file buzz.toml: not a table");
             return;
@@ -307,7 +297,8 @@ fn main() {
             }
 
             None
-        }).collect();
+        })
+        .collect();
 
     if accounts.is_empty() {
         println!("No accounts in config worked; exiting...");
@@ -332,11 +323,13 @@ fn main() {
         if unseen.iter().sum::<usize>() == 0 {
             app.set_icon_from_file(
                 &"/usr/share/icons/oxygen/base/32x32/status/mail-unread.png".to_string(),
-            ).unwrap();
+            )
+            .unwrap();
         } else {
             app.set_icon_from_file(
                 &"/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png".to_string(),
-            ).unwrap();
+            )
+            .unwrap();
         }
     }
 }
