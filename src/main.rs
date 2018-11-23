@@ -29,33 +29,29 @@ struct Account {
 impl Account {
     pub fn connect(&self) -> Result<Connection<TlsStream<TcpStream>>, imap::error::Error> {
         let tls = TlsConnector::builder().build()?;
-        imap::client::secure_connect((&*self.server.0, self.server.1), &self.server.0, &tls)
-            .and_then(|c| {
-                let mut c = try!(
-                    c.login(self.username.trim(), self.password.trim())
-                        .map_err(|(e, _)| e)
-                );
-                let cap = try!(c.capabilities());
-                if !cap.iter().any(|&c| c == "IDLE") {
-                    return Err(imap::error::Error::BadResponse(
-                        cap.iter().cloned().collect(),
-                    ));
-                }
-                try!(c.select("INBOX"));
-                Ok(Connection {
-                    account: self.clone(),
-                    socket: c,
-                })
+        imap::connect((&*self.server.0, self.server.1), &self.server.0, &tls).and_then(|c| {
+            let mut c = try!(c
+                .login(self.username.trim(), self.password.trim())
+                .map_err(|(e, _)| e));
+            let cap = try!(c.capabilities());
+            if !cap.iter().any(|&c| c == "IDLE") {
+                return Err(imap::error::Error::Bad(cap.iter().cloned().collect()));
+            }
+            try!(c.select("INBOX"));
+            Ok(Connection {
+                account: self.clone(),
+                socket: c,
             })
+        })
     }
 }
 
 struct Connection<T: Read + Write> {
     account: Account,
-    socket: imap::client::Session<T>,
+    socket: imap::Session<T>,
 }
 
-impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
+impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
     pub fn handle(mut self, account: usize, mut tx: mpsc::Sender<(usize, usize)>) {
         loop {
             if let Err(_) = self.check(account, &mut tx) {
@@ -106,7 +102,7 @@ impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
                 }
                 num_unseen += 1;
             }
-            let uids: Vec<_> = uids.into_iter().map(|v: u32| String::from(v)).collect();
+            let uids: Vec<_> = uids.into_iter().map(|v: u32| format!("{}", v)).collect();
 
             let mut subjects = Vec::new();
             if !uids.is_empty() {
@@ -115,7 +111,7 @@ impl<T: Read + Write + imap::client::SetReadTimeout> Connection<T> {
                     .uid_fetch(&uids.join(","), "RFC822.HEADER")?
                     .iter()
                 {
-                    let msg = msg.rfc822_header();
+                    let msg = msg.header();
                     if msg.is_none() {
                         continue;
                     }

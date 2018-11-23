@@ -19,7 +19,7 @@ license = "MIT/Apache-2.0"
 debug=true
 
 [dependencies]
-imap = { git = "https://github.com/mattnenterprise/rust-imap.git" }
+imap = "0.9"
 native-tls = "0.2"
 systray = "0.3.0"
 mailparse = "0.6.0"
