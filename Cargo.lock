@@ -132,7 +132,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "buzz"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "imap 0.9.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mailparse 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
