@@ -1,6 +1,6 @@
 [package]
 name = "buzz"
-version = "1.1.1"
+version = "1.1.2"
 
 description = "A simple system tray application for notifying about unseen e-mail"
 readme = "README.md"
@@ -14,6 +14,9 @@ keywords = ["email","cli","systray","notification"]
 categories = ["command-line-utilities", "email"]
 
 license = "MIT/Apache-2.0"
+
+[badges]
+maintenance = { status = "passively-maintained" }
 
 [profile.release]
 debug=true
