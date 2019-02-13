@@ -1,4 +1,5 @@
 extern crate askama_escape;
+extern crate chrono;
 extern crate imap;
 extern crate mailparse;
 extern crate native_tls;
@@ -11,6 +12,8 @@ extern crate xdg;
 use native_tls::{TlsConnector, TlsStream};
 use rayon::prelude::*;
 
+use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::net::TcpStream;
@@ -105,7 +108,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
             }
             let uids: Vec<_> = uids.into_iter().map(|v: u32| format!("{}", v)).collect();
 
-            let mut subjects = Vec::new();
+            let mut subjects = BTreeMap::new();
             if !uids.is_empty() {
                 for msg in self
                     .socket
@@ -120,17 +123,34 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                     match mailparse::parse_headers(msg.unwrap()) {
                         Ok((headers, _)) => {
                             use mailparse::MailHeaderMap;
-                            match headers.get_first_value("Subject") {
-                                Ok(Some(subject)) => {
-                                    subjects.push(subject);
-                                }
-                                Ok(None) => {
-                                    subjects.push(String::from("<no subject>"));
-                                }
+
+                            let subject = match headers.get_first_value("Subject") {
+                                Ok(Some(subject)) => Cow::from(subject),
+                                Ok(None) => Cow::from("<no subject>"),
                                 Err(e) => {
                                     println!("failed to get message subject: {:?}", e);
+                                    continue;
                                 }
-                            }
+                            };
+
+                            let date = match headers.get_first_value("Date") {
+                                Ok(Some(date)) => {
+                                    match chrono::DateTime::parse_from_rfc2822(&date) {
+                                        Ok(date) => date.with_timezone(&chrono::Local),
+                                        Err(e) => {
+                                            println!("failed to parse message date: {:?}", e);
+                                            chrono::Local::now()
+                                        }
+                                    }
+                                }
+                                Ok(None) => chrono::Local::now(),
+                                Err(e) => {
+                                    println!("failed to get message date: {:?}", e);
+                                    continue;
+                                }
+                            };
+
+                            subjects.insert(date, subject);
                         }
                         Err(e) => println!("failed to parse headers of message: {:?}", e),
                     }
@@ -143,12 +163,21 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                     "@{} has new mail ({} unseen)",
                     self.account.name, num_unseen
                 );
-                let notification = format!("> {}", subjects.join("\n> "));
+
+                // we want the n newest e-mail in reverse chronological order
+                let mut notification = String::new();
+                for subject in subjects.values().rev() {
+                    notification.push_str("> ");
+                    notification.push_str(subject);
+                    notification.push_str("\n");
+                }
+                let notification = notification.trim_end();
+
                 println!("! {}", title);
                 println!("{}", notification);
                 Notification::new()
                     .summary(&title)
-                    .body(&format!("{}", askama_escape::escape(&notification)))
+                    .body(&format!("{}", askama_escape::escape(notification)))
                     .icon("notification-message-email")
                     .hint(NotificationHint::Category("email".to_owned()))
                     .timeout(-1)
