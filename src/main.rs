@@ -1,3 +1,4 @@
+extern crate askama_escape;
 extern crate imap;
 extern crate mailparse;
 extern crate native_tls;
@@ -147,7 +148,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 println!("{}", notification);
                 Notification::new()
                     .summary(&title)
-                    .body(&notification)
+                    .body(&format!("{}", askama_escape::escape(&notification)))
                     .icon("notification-message-email")
                     .hint(NotificationHint::Category("email".to_owned()))
                     .timeout(-1)
