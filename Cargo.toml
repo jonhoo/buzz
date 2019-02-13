@@ -22,7 +22,7 @@ maintenance = { status = "passively-maintained" }
 debug=true
 
 [dependencies]
-imap = "0.9"
+imap = "0.10"
 native-tls = "0.2"
 systray = "0.3.0"
 mailparse = "0.6.0"
