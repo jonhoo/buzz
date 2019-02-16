@@ -95,6 +95,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
     ) -> Result<(), imap::error::Error> {
         // Keep track of all the e-mails we have already notified about
         let mut last_notified = 0;
+        let mut notification = None::<notify_rust::NotificationHandle>;
 
         loop {
             // check current state of inbox
@@ -165,24 +166,32 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 );
 
                 // we want the n newest e-mail in reverse chronological order
-                let mut notification = String::new();
+                let mut body = String::new();
                 for subject in subjects.values().rev() {
-                    notification.push_str("> ");
-                    notification.push_str(subject);
-                    notification.push_str("\n");
+                    body.push_str("> ");
+                    body.push_str(subject);
+                    body.push_str("\n");
                 }
-                let notification = notification.trim_end();
+                let body = body.trim_end();
 
                 println!("! {}", title);
-                println!("{}", notification);
-                Notification::new()
-                    .summary(&title)
-                    .body(&format!("{}", askama_escape::escape(notification)))
-                    .icon("notification-message-email")
-                    .hint(NotificationHint::Category("email".to_owned()))
-                    .timeout(-1)
-                    .show()
-                    .expect("failed to launch notify-send");
+                println!("{}", body);
+                if let Some(mut n) = notification.take() {
+                    n.summary(&title)
+                        .body(&format!("{}", askama_escape::escape(body)));
+                    n.update();
+                } else {
+                    notification = Some(
+                        Notification::new()
+                            .summary(&title)
+                            .body(&format!("{}", askama_escape::escape(body)))
+                            .icon("notification-message-email")
+                            .hint(NotificationHint::Category("email.arrived".to_owned()))
+                            .id(42) // for some reason, just updating isn't enough for dunst
+                            .show()
+                            .expect("failed to launch notify-send"),
+                    );
+                }
             }
 
             tx.send((account, num_unseen)).unwrap();
