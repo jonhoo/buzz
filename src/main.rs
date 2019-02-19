@@ -99,18 +99,17 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
 
         loop {
             // check current state of inbox
-            let mut num_unseen = 0;
-            let uids = self.socket.uid_search("UNSEEN 1:*")?;
-            for &uid in &uids {
-                if uid > last_notified {
-                    last_notified = uid;
-                }
-                num_unseen += 1;
+            let mut uids = self.socket.uid_search("UNSEEN 1:*")?;
+            let num_unseen = uids.len();
+            if uids.iter().all(|&uid| uid <= last_notified) {
+                // there are no messages we haven't already notified about
+                uids.clear();
             }
-            let uids: Vec<_> = uids.into_iter().map(|v: u32| format!("{}", v)).collect();
+            last_notified = std::cmp::max(last_notified, uids.iter().cloned().max().unwrap_or(0));
 
             let mut subjects = BTreeMap::new();
             if !uids.is_empty() {
+                let uids: Vec<_> = uids.into_iter().map(|v: u32| format!("{}", v)).collect();
                 for msg in self
                     .socket
                     .uid_fetch(&uids.join(","), "RFC822.HEADER")?
