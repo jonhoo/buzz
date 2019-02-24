@@ -58,9 +58,10 @@ struct Connection<T: Read + Write> {
 impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
     pub fn handle(mut self, account: usize, mut tx: mpsc::Sender<(usize, usize)>) {
         loop {
-            if let Err(_) = self.check(account, &mut tx) {
+            if let Err(e) = self.check(account, &mut tx) {
                 // the connection has failed for some reason
                 // try to log out (we probably can't)
+                eprintln!("connection to {} failed: {:?}", self.account.name, e);
                 self.socket.logout().is_err();
                 break;
             }
@@ -69,7 +70,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
         // try to reconnect
         let mut wait = 1;
         for _ in 0..5 {
-            println!(
+            eprintln!(
                 "connection to {} lost; trying to reconnect...",
                 self.account.name
             );
@@ -78,10 +79,10 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                     println!("{} connection reestablished", self.account.name);
                     return c.handle(account, tx);
                 }
-                Err(imap::error::Error::Io(_)) => {
+                Err(e) => {
+                    eprintln!("failed to connect to {}: {:?}", self.account.name, e);
                     thread::sleep(Duration::from_secs(wait));
                 }
-                Err(_) => break,
             }
 
             wait *= 2;
