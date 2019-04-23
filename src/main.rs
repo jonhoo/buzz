@@ -177,14 +177,19 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 println!("! {}", title);
                 println!("{}", body);
                 if let Some(mut n) = notification.take() {
-                    n.summary(&title)
-                        .body(&format!("{}", askama_escape::escape(body)));
+                    n.summary(&title).body(&format!(
+                        "{}",
+                        askama_escape::escape(body, askama_escape::Html)
+                    ));
                     n.update();
                 } else {
                     notification = Some(
                         Notification::new()
                             .summary(&title)
-                            .body(&format!("{}", askama_escape::escape(body)))
+                            .body(&format!(
+                                "{}",
+                                askama_escape::escape(body, askama_escape::Html)
+                            ))
                             .icon("notification-message-email")
                             .hint(NotificationHint::Category("email.arrived".to_owned()))
                             .id(42) // for some reason, just updating isn't enough for dunst
