@@ -24,11 +24,8 @@ debug=true
 [dependencies]
 imap = "1.0"
 native-tls = "0.2"
-systray = "0.3.0"
 mailparse = "0.8"
 toml = "0.5"
 xdg = "2.1.0"
-notify-rust = "3.4.0"
 rayon = "1.0.0"
-askama_escape = "0.2"
 chrono = "0.4"
