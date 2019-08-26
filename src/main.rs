@@ -9,8 +9,6 @@ extern crate xdg;
 use native_tls::{TlsConnector, TlsStream};
 use rayon::prelude::*;
 
-use std::borrow::Cow;
-use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::net::TcpStream;
@@ -104,56 +102,6 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 uids.clear();
             }
             last_notified = std::cmp::max(last_notified, uids.iter().cloned().max().unwrap_or(0));
-
-            let mut subjects = BTreeMap::new();
-            if !uids.is_empty() {
-                let uids: Vec<_> = uids.into_iter().map(|v: u32| format!("{}", v)).collect();
-                for msg in self.socket
-                    .uid_fetch(&uids.join(","), "RFC822.HEADER")?
-                    .iter()
-                {
-                    let msg = msg.header();
-                    if msg.is_none() {
-                        continue;
-                    }
-
-                    match mailparse::parse_headers(msg.unwrap()) {
-                        Ok((headers, _)) => {
-                            use mailparse::MailHeaderMap;
-
-                            let subject = match headers.get_first_value("Subject") {
-                                Ok(Some(subject)) => Cow::from(subject),
-                                Ok(None) => Cow::from("<no subject>"),
-                                Err(e) => {
-                                    println!("failed to get message subject: {:?}", e);
-                                    continue;
-                                }
-                            };
-
-                            let date = match headers.get_first_value("Date") {
-                                Ok(Some(date)) => {
-                                    match chrono::DateTime::parse_from_rfc2822(&date) {
-                                        Ok(date) => date.with_timezone(&chrono::Local),
-                                        Err(e) => {
-                                            println!("failed to parse message date: {:?}", e);
-                                            chrono::Local::now()
-                                        }
-                                    }
-                                }
-                                Ok(None) => chrono::Local::now(),
-                                Err(e) => {
-                                    println!("failed to get message date: {:?}", e);
-                                    continue;
-                                }
-                            };
-
-                            subjects.insert(date, subject);
-                        }
-                        Err(e) => println!("failed to parse headers of message: {:?}", e),
-                    }
-                }
-            }
-
 
             tx.send((account, num_unseen)).unwrap();
 
