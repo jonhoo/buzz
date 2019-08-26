@@ -296,14 +296,19 @@ fn main() {
 
     for (i, num_unseen) in rx {
         unseen[i] = num_unseen;
-        let mut file = std::fs::File::create("/tmp/mails").expect("create failed");
+        let output_path = ::std::env::args().nth(1).unwrap();
+        let commands = ::std::env::args().nth(2).unwrap();
+        let mut file = std::fs::File::create(&output_path).expect("create failed");
         file.write_all(num_unseen.to_string().as_bytes()).expect(
             "write failed",
         );
-        Command::new("pkill")
-            .arg("-RTMIN+2")
-            .arg("i3blocks")
-            .spawn()
-            .expect("pkill command failed to start");
+        Command::new("sh").arg("-c").arg(&commands).spawn().expect(
+            "command failed to start",
+        );
+        // Command::new("pkill")
+        //     .arg("-RTMIN+2")
+        //     .arg("i3blocks")
+        //     .spawn()
+        //     .expect("pkill command failed to start");
     }
 }
