@@ -24,6 +24,8 @@ struct Account {
     server: (String, u16),
     username: String,
     password: String,
+    command: String,
+    outfile: String,
 }
 
 impl Account {
@@ -180,6 +182,8 @@ fn main() {
                             ),
                             username: t["username"].as_str().unwrap().to_owned(),
                             password: password,
+                            command: t["command"].as_str().unwrap().to_owned(),
+                            outfile: t["outfile"].as_str().unwrap().to_owned(),
                         })
                     }
                 })
@@ -244,15 +248,19 @@ fn main() {
 
     for (i, num_unseen) in rx {
         unseen[i] = num_unseen;
-        let output_path = ::std::env::args().nth(1).unwrap();
-        let commands = ::std::env::args().nth(2).unwrap();
-        let mut file = std::fs::File::create(&output_path).expect("create failed");
+        //let output_path = ::std::env::args().nth(1).unwrap();
+        //let commands = ::std::env::args().nth(2).unwrap();
+        pub static COMMANDER: &str = "command";
+        pub static OUTFILE: &str = "outfile";
+        let mut file = std::fs::File::create(&OUTFILE).expect("create failed");
         file.write_all(num_unseen.to_string().as_bytes()).expect(
             "write failed",
         );
-        Command::new("sh").arg("-c").arg(&commands).spawn().expect(
-            "command failed to start",
-        );
+        Command::new("sh")
+            .arg("-c")
+            .arg(&COMMANDER)
+            .spawn()
+            .expect("command failed to start");
         // Command::new("pkill")
         //     .arg("-RTMIN+2")
         //     .arg("i3blocks")
