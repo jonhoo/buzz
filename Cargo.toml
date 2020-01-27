@@ -1,6 +1,7 @@
 [package]
 name = "buzz"
-version = "1.1.10"
+version = "1.1.11"
+edition = "2018"
 
 description = "A simple system tray application for notifying about unseen e-mail"
 readme = "README.md"
@@ -25,10 +26,10 @@ debug=true
 imap = "1.0"
 native-tls = "0.2"
 systray = "0.3.0"
-mailparse = "0.8"
+mailparse = "0.10"
 toml = "0.5"
 xdg = "2.1.0"
 notify-rust = "3.4.0"
 rayon = "1.0.0"
-askama_escape = "0.2"
+askama_escape = "0.3"
 chrono = "0.4"
