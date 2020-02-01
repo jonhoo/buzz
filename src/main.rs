@@ -237,40 +237,42 @@ fn main() {
     };
 
     // Figure out what accounts we have to deal with
-    let accounts: Vec<_> = match config.as_table() {
-        Some(t) => t
-            .iter()
-            .filter_map(|(name, v)| match v.as_table() {
+    let accounts: Vec<_> = match config.get("account") {
+        Some(a) => {
+            match a.as_array() {
                 None => {
-                    println!("Configuration for account {} is broken: not a table", name);
-                    None
-                }
-                Some(t) => {
-                    let pwcmd = match t.get("pwcmd").and_then(|p| p.as_str()) {
-                        None => return None,
-                        Some(pwcmd) => pwcmd,
-                    };
+                    println!("No accounts were found");
+                    return;
+                },
+                Some(a) => {
+                    a.iter()
+                    .filter_map(|account| {
+                        let pwcmd = match account.get("pwcmd").and_then(|p| p.as_str()) {
+                            None => return None,
+                            Some(pwcmd) => pwcmd,
+                        };
 
-                    let password = match Command::new("sh").arg("-c").arg(pwcmd).output() {
-                        Ok(output) => String::from_utf8_lossy(&output.stdout).into_owned(),
-                        Err(e) => {
-                            println!("Failed to launch password command for {}: {}", name, e);
-                            return None;
-                        }
-                    };
+                        let password = match Command::new("sh").arg("-c").arg(pwcmd).output() {
+                            Ok(output) => String::from_utf8_lossy(&output.stdout).into_owned(),
+                            Err(e) => {
+                                println!("Failed to launch password command for {}: {}", account["name"], e);
+                                return None;
+                            }
+                        };
 
-                    Some(Account {
-                        name: name.as_str().to_owned(),
-                        server: (
-                            t["server"].as_str().unwrap().to_owned(),
-                            t["port"].as_integer().unwrap() as u16,
-                        ),
-                        username: t["username"].as_str().unwrap().to_owned(),
-                        password: password,
-                    })
+                        Some(Account {
+                            name: account["name"].as_str().unwrap().to_owned(),
+                            server: (
+                                account["server"].as_str().unwrap().to_owned(),
+                                account["port"].as_integer().unwrap() as u16,
+                                ),
+                                username: account["username"].as_str().unwrap().to_owned(),
+                                password: password,
+                        })
+                    }).collect()
                 }
-            })
-            .collect(),
+            }
+        }
         None => {
             println!("Could not parse configuration file buzz.toml: not a table");
             return;
