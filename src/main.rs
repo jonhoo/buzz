@@ -154,15 +154,20 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 if let Some(notificationcmd) = &self.account.notification_command {
                     match Command::new("sh").arg("-c").arg(notificationcmd).status() {
                         Ok(s) if s.success() => {}
-                        Ok(_) => {
-                            eprintln!(
-                                "Notification command did not exit successfully for {}",
+                        Ok(s) => {
+                            eprint!(
+                                "Notification command for {} did not exit successfully.",
                                 self.account.name
                             );
+                            if let Some(exit_code) = s.code() {
+                                eprintln!(" Exit code: {}", exit_code);
+                            } else {
+                                eprintln!(" Process was terminated by a signal.",);
+                            }
                         }
                         Err(e) => {
                             eprintln!(
-                                "Failed to notification command for {}: {}",
+                                "Could not execute notification command for {}: {}",
                                 self.account.name, e
                             );
                         }
