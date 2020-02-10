@@ -19,6 +19,7 @@ struct Account {
     server: (String, u16),
     username: String,
     password: String,
+    notification_command: Option<String>,
 }
 
 impl Account {
@@ -150,6 +151,29 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
             }
 
             if !subjects.is_empty() {
+                if let Some(notificationcmd) = &self.account.notification_command {
+                    match Command::new("sh").arg("-c").arg(notificationcmd).status() {
+                        Ok(s) if s.success() => {}
+                        Ok(s) => {
+                            eprint!(
+                                "Notification command for {} did not exit successfully.",
+                                self.account.name
+                            );
+                            if let Some(exit_code) = s.code() {
+                                eprintln!(" Exit code: {}", exit_code);
+                            } else {
+                                eprintln!(" Process was terminated by a signal.",);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "Could not execute notification command for {}: {}",
+                                self.account.name, e
+                            );
+                        }
+                    }
+                }
+
                 use notify_rust::{Notification, NotificationHint};
                 let title = format!(
                     "@{} has new mail ({} unseen)",
@@ -267,6 +291,9 @@ fn main() {
                         ),
                         username: t["username"].as_str().unwrap().to_owned(),
                         password: password,
+                        notification_command: t
+                            .get("notificationcmd")
+                            .map(|v| v.as_str().unwrap().to_string()),
                     })
                 }
             })

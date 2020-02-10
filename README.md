@@ -32,6 +32,7 @@ server = "imap.gmail.com"
 port = 993
 username = "jon@gmail.com"
 pwcmd = "gnome-keyring-query get gmail_pw"
+notificationcmd = "ssh -t somehost wall 'New gmail message!'" #Optional
 ```
 
 ## Account fields
@@ -45,6 +46,7 @@ arrive for an account. The options for an account are as follows:
  - `port`: The port to connect to.
  - `username`: Username for authentication.
  - `pwcmd`: Command to execute to get password for authentication.
+ - `notificationcmd`: Additional command to be executed on new messages for this account.
 
 # TODOs
 
