@@ -48,7 +48,7 @@ struct Connection<T: Read + Write> {
 }
 
 impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
-    pub fn handle(mut self, account: usize, mut tx: mpsc::Sender<(usize, usize)>) {
+    pub fn handle(mut self, account: usize, mut tx: mpsc::Sender<Option<(usize, usize)>>) {
         loop {
             if let Err(e) = self.check(account, &mut tx) {
                 // the connection has failed for some reason
@@ -84,7 +84,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
     fn check(
         &mut self,
         account: usize,
-        tx: &mut mpsc::Sender<(usize, usize)>,
+        tx: &mut mpsc::Sender<Option<(usize, usize)>>,
     ) -> Result<(), imap::error::Error> {
         // Keep track of all the e-mails we have already notified about
         let mut last_notified = 0;
@@ -214,7 +214,10 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 }
             }
 
-            tx.send((account, num_unseen)).unwrap();
+            if let Err(_) = tx.send(Some((account, num_unseen))) {
+                // we're exiting!
+                break Ok(());
+            }
 
             // IDLE until we see changes
             self.socket.idle()?.wait_keepalive()?;
@@ -322,7 +325,11 @@ fn main() {
     {
         println!("Could not set application icon: {}", e);
     }
-    if let Err(e) = app.add_menu_item(&"Quit".to_string(), |window| {
+
+    let (tx, rx) = mpsc::channel();
+    let tx_close = std::sync::Mutex::new(tx.clone());
+    if let Err(e) = app.add_menu_item(&"Quit".to_string(), move |window| {
+        tx_close.lock().unwrap().send(None).unwrap();
         Ok::<_, systray::Error>(window.quit())
     }) {
         println!("Could not add application Quit menu option: {}", e);
@@ -367,7 +374,6 @@ fn main() {
     app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_connect.png".to_string())
         .ok();
 
-    let (tx, rx) = mpsc::channel();
     let mut unseen: Vec<_> = accounts.iter().map(|_| 0).collect();
     for (i, conn) in accounts.into_iter().enumerate() {
         let tx = tx.clone();
@@ -376,7 +382,12 @@ fn main() {
         });
     }
 
-    for (i, num_unseen) in rx {
+    for r in rx {
+        let (i, num_unseen) = if let Some(r) = r {
+            r
+        } else {
+            break;
+        };
         unseen[i] = num_unseen;
         if unseen.iter().sum::<usize>() == 0 {
             app.set_icon_from_file(
