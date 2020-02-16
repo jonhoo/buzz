@@ -174,7 +174,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                     }
                 }
 
-                use notify_rust::{Notification, NotificationHint};
+                use notify_rust::{Hint, Notification};
                 let title = format!(
                     "@{} has new mail ({} unseen)",
                     self.account.name, num_unseen
@@ -206,7 +206,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                                 askama_escape::escape(body, askama_escape::Html)
                             ))
                             .icon("notification-message-email")
-                            .hint(NotificationHint::Category("email.arrived".to_owned()))
+                            .hint(Hint::Category("email.arrived".to_owned()))
                             .id(42) // for some reason, just updating isn't enough for dunst
                             .show()
                             .expect("failed to launch notify-send"),
@@ -323,7 +323,7 @@ fn main() {
         println!("Could not set application icon: {}", e);
     }
     if let Err(e) = app.add_menu_item(&"Quit".to_string(), |window| {
-        window.quit();
+        Ok::<_, systray::Error>(window.quit())
     }) {
         println!("Could not add application Quit menu option: {}", e);
     }
