@@ -30,8 +30,13 @@ impl Account {
                 .login(self.username.trim(), self.password.trim())
                 .map_err(|(e, _)| e)?;
             let cap = c.capabilities()?;
-            if !cap.iter().any(|&c| c == "IDLE") {
-                return Err(imap::error::Error::Bad(cap.iter().cloned().collect()));
+            if !cap.has_str("IDLE") {
+                return Err(imap::error::Error::Bad(
+                    cap.iter()
+                        .map(|s| format!("{:?}", s))
+                        .collect::<Vec<_>>()
+                        .join(","),
+                ));
             }
             c.select("INBOX")?;
             Ok(Connection {
@@ -118,29 +123,19 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                             use mailparse::MailHeaderMap;
 
                             let subject = match headers.get_first_value("Subject") {
-                                Ok(Some(subject)) => Cow::from(subject),
-                                Ok(None) => Cow::from("<no subject>"),
-                                Err(e) => {
-                                    println!("failed to get message subject: {:?}", e);
-                                    continue;
-                                }
+                                Some(subject) => Cow::from(subject),
+                                None => Cow::from("<no subject>"),
                             };
 
                             let date = match headers.get_first_value("Date") {
-                                Ok(Some(date)) => {
-                                    match chrono::DateTime::parse_from_rfc2822(&date) {
-                                        Ok(date) => date.with_timezone(&chrono::Local),
-                                        Err(e) => {
-                                            println!("failed to parse message date: {:?}", e);
-                                            chrono::Local::now()
-                                        }
+                                Some(date) => match chrono::DateTime::parse_from_rfc2822(&date) {
+                                    Ok(date) => date.with_timezone(&chrono::Local),
+                                    Err(e) => {
+                                        println!("failed to parse message date: {:?}", e);
+                                        chrono::Local::now()
                                     }
-                                }
-                                Ok(None) => chrono::Local::now(),
-                                Err(e) => {
-                                    println!("failed to get message date: {:?}", e);
-                                    continue;
-                                }
+                                },
+                                None => chrono::Local::now(),
                             };
 
                             subjects.insert(date, subject);

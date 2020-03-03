@@ -1,6 +1,6 @@
 [package]
 name = "buzz"
-version = "1.2.0"
+version = "1.2.1"
 edition = "2018"
 
 description = "A simple system tray application for notifying about unseen e-mail"
@@ -23,10 +23,10 @@ maintenance = { status = "passively-maintained" }
 debug=true
 
 [dependencies]
-imap = "1.0"
+imap = "2.0"
 native-tls = "0.2"
 systray = "0.4"
-mailparse = "0.10"
+mailparse = "0.12"
 toml = "0.5"
 xdg = "2.1.0"
 notify-rust = "4.0.0-beta.2"
