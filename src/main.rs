@@ -209,7 +209,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 }
             }
 
-            if let Err(_) = tx.send(Some((account, num_unseen))) {
+            if tx.send(Some((account, num_unseen))).is_err() {
                 // we're exiting!
                 break Ok(());
             }
@@ -288,7 +288,7 @@ fn main() {
                             t["port"].as_integer().unwrap() as u16,
                         ),
                         username: t["username"].as_str().unwrap().to_owned(),
-                        password: password,
+                        password,
                         notification_command: t
                             .get("notificationcmd")
                             .map(|v| v.as_str().unwrap().to_string()),
@@ -325,7 +325,8 @@ fn main() {
     let tx_close = std::sync::Mutex::new(tx.clone());
     if let Err(e) = app.add_menu_item(&"Quit".to_string(), move |window| {
         tx_close.lock().unwrap().send(None).unwrap();
-        Ok::<_, systray::Error>(window.quit())
+        window.quit();
+        Ok::<_, systray::Error>(())
     }) {
         println!("Could not add application Quit menu option: {}", e);
     }
