@@ -311,7 +311,7 @@ fn main() {
                         notification_command: t.get("notificationcmd").and_then(
                             |raw_v| match raw_v.as_str() {
                                 Some(v) => Some(v.to_string()),
-                                None => parse_failed("notificationcmd", "string"),
+                                None => return parse_failed("notificationcmd", "string"),
                             },
                         ),
                     })
