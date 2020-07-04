@@ -220,6 +220,12 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
     }
 }
 
+#[inline]
+fn parse_failed<T>(key: &str, typename: &str) -> Option<T> {
+    println!("Failed to parse '{}' as {}", key, typename);
+    None
+}
+
 fn main() {
     // Load the user's config
     let xdg = match xdg::BaseDirectories::new() {
@@ -284,14 +290,30 @@ fn main() {
                     Some(Account {
                         name: name.as_str().to_owned(),
                         server: (
-                            t["server"].as_str().unwrap().to_owned(),
-                            t["port"].as_integer().unwrap() as u16,
+                            match t["server"].as_str() {
+                                Some(v) => v.to_owned(),
+                                None => return parse_failed("server", "string"),
+                            },
+                            match t["port"].as_integer() {
+                                Some(v) => v as u16,
+                                None => {
+                                    return parse_failed("port", "integer");
+                                }
+                            },
                         ),
-                        username: t["username"].as_str().unwrap().to_owned(),
+                        username: match t["username"].as_str() {
+                            Some(v) => v.to_owned(),
+                            None => {
+                                return parse_failed("username", "string");
+                            }
+                        },
                         password,
-                        notification_command: t
-                            .get("notificationcmd")
-                            .map(|v| v.as_str().unwrap().to_string()),
+                        notification_command: t.get("notificationcmd").and_then(
+                            |raw_v| match raw_v.as_str() {
+                                Some(v) => Some(v.to_string()),
+                                None => return parse_failed("notificationcmd", "string"),
+                            },
+                        ),
                     })
                 }
             })
