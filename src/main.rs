@@ -220,6 +220,12 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
     }
 }
 
+#[inline]
+fn parse_failed<T>(key: &str, typename: &str) -> Option<T> {
+    println!("Failed to parse '{}' as {}", key, typename);
+    None
+}
+
 fn main() {
     // Load the user's config
     let xdg = match xdg::BaseDirectories::new() {
@@ -286,34 +292,26 @@ fn main() {
                         server: (
                             match t["server"].as_str() {
                                 Some(v) => v.to_owned(),
-                                None => {
-                                    println!("Failed to parse 'server' as string.");
-                                    return None;
-                                }
+                                None => return parse_failed("server", "string"),
                             },
                             match t["port"].as_integer() {
                                 Some(v) => v as u16,
                                 None => {
-                                    println!("Failed to parse 'port' as integer.");
-                                    return None;
+                                    return parse_failed("port", "integer");
                                 }
                             },
                         ),
                         username: match t["username"].as_str() {
                             Some(v) => v.to_owned(),
                             None => {
-                                println!("Failed to parse 'username' as string.");
-                                return None;
+                                return parse_failed("username", "string");
                             }
                         },
                         password,
                         notification_command: t.get("notificationcmd").and_then(
                             |raw_v| match raw_v.as_str() {
                                 Some(v) => Some(v.to_string()),
-                                None => {
-                                    println!("Failed to parse 'notificationcmd' as string.");
-                                    None
-                                }
+                                None => parse_failed("notificationcmd", "string"),
                             },
                         ),
                     })
