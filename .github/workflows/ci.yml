@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        rust: [stable]
+        rust: [beta, stable]
     steps:
       # Linux dependencies
       - name: Install dependencies
@@ -33,6 +33,21 @@ jobs:
         with:
           command: check
           args: --all-features
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: clippy
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
 
   fmt:
     name: Rustfmt
