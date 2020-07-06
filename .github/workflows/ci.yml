@@ -1,6 +1,6 @@
 name: Continuous Integration
 
-on: push
+on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
@@ -9,12 +9,19 @@ jobs:
   check:
     name: Check
     runs-on: ${{ matrix.os }}
-    continue-on-error: true
+    continue-on-error: ${{ matrix.can_fail }}
     strategy:
-      fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [macos-latest, windows-latest]
         rust: [beta, stable]
+        can_fail: [true]
+        include:
+          - os: ubuntu-latest
+            rust: stable
+            can_fail: false
+          - os: ubuntu-latest
+            rust: beta
+            can_fail: false
     steps:
       # Linux dependencies
       - name: Install dependencies
