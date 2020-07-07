@@ -230,7 +230,7 @@ fn parse_failed<T>(key: &str, typename: &str) -> Option<T> {
 
 fn main() {
     // Load the user's config
-    let config = ProjectDirs::from("jonhoo", "github", "buzz")
+    let config = ProjectDirs::from("", "", "buzz")
         .expect("Could not find valid home directory.")
         .config_dir()
         .with_file_name("buzz.toml");
