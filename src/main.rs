@@ -337,15 +337,14 @@ fn main() {
             return;
         }
     };
-    if let Err(e) =
-        app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_disconnect.png".to_string())
+    if let Err(e) = app.set_icon_from_file("/usr/share/icons/Faenza/stock/24/stock_disconnect.png")
     {
         println!("Could not set application icon: {}", e);
     }
 
     let (tx, rx) = mpsc::channel();
     let tx_close = std::sync::Mutex::new(tx.clone());
-    if let Err(e) = app.add_menu_item(&"Quit".to_string(), move |window| {
+    if let Err(e) = app.add_menu_item("Quit", move |window| {
         tx_close.lock().unwrap().send(None).unwrap();
         window.quit();
         Ok::<_, systray::Error>(())
@@ -389,7 +388,7 @@ fn main() {
     }
 
     // We have now connected
-    app.set_icon_from_file(&"/usr/share/icons/Faenza/stock/24/stock_connect.png".to_string())
+    app.set_icon_from_file("/usr/share/icons/Faenza/stock/24/stock_connect.png")
         .ok();
 
     let mut unseen: Vec<_> = accounts.iter().map(|_| 0).collect();
@@ -408,15 +407,11 @@ fn main() {
         };
         unseen[i] = num_unseen;
         if unseen.iter().sum::<usize>() == 0 {
-            app.set_icon_from_file(
-                &"/usr/share/icons/oxygen/base/32x32/status/mail-unread.png".to_string(),
-            )
-            .unwrap();
+            app.set_icon_from_file("/usr/share/icons/oxygen/base/32x32/status/mail-unread.png")
+                .unwrap();
         } else {
-            app.set_icon_from_file(
-                &"/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png".to_string(),
-            )
-            .unwrap();
+            app.set_icon_from_file("/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png")
+                .unwrap();
         }
     }
 }
