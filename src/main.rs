@@ -13,6 +13,8 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use directories_next::ProjectDirs;
+
 #[derive(Clone)]
 struct Account {
     name: String,
@@ -228,20 +230,11 @@ fn parse_failed<T>(key: &str, typename: &str) -> Option<T> {
 
 fn main() {
     // Load the user's config
-    let xdg = match xdg::BaseDirectories::new() {
-        Ok(xdg) => xdg,
-        Err(e) => {
-            println!("Could not find configuration file buzz.toml: {}", e);
-            return;
-        }
-    };
-    let config = match xdg.find_config_file("buzz.toml") {
-        Some(config) => config,
-        None => {
-            println!("Could not find configuration file buzz.toml");
-            return;
-        }
-    };
+    let config = ProjectDirs::from("jonhoo", "github", "buzz")
+        .expect("Could not find valid home directory.")
+        .config_dir()
+        .with_file_name("buzz.toml");
+
     let config = {
         let mut f = match File::open(config) {
             Ok(f) => f,
