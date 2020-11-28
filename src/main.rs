@@ -99,8 +99,8 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
 
         loop {
             // check current state of inbox
-            let mut uids = self.socket.uid_search("UNSEEN 1:*")?;
-            let num_unseen = uids.len();
+            let mut uids = self.socket.uid_search("NEW 1:*")?;
+            let num_new = uids.len();
             if uids.iter().all(|&uid| uid <= last_notified) {
                 // there are no messages we haven't already notified about
                 uids.clear();
@@ -172,10 +172,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 }
 
                 use notify_rust::{Hint, Notification};
-                let title = format!(
-                    "@{} has new mail ({} unseen)",
-                    self.account.name, num_unseen
-                );
+                let title = format!("@{} has new mail ({})", self.account.name, num_new);
 
                 // we want the n newest e-mail in reverse chronological order
                 let mut body = String::new();
@@ -211,7 +208,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 }
             }
 
-            if tx.send(Some((account, num_unseen))).is_err() {
+            if tx.send(Some((account, num_new))).is_err() {
                 // we're exiting!
                 break Ok(());
             }
@@ -384,7 +381,7 @@ fn main() {
     app.set_icon_from_file("/usr/share/icons/Faenza/stock/24/stock_connect.png")
         .ok();
 
-    let mut unseen: Vec<_> = accounts.iter().map(|_| 0).collect();
+    let mut new: Vec<_> = accounts.iter().map(|_| 0).collect();
     for (i, conn) in accounts.into_iter().enumerate() {
         let tx = tx.clone();
         thread::spawn(move || {
@@ -393,13 +390,13 @@ fn main() {
     }
 
     for r in rx {
-        let (i, num_unseen) = if let Some(r) = r {
+        let (i, num_new) = if let Some(r) = r {
             r
         } else {
             break;
         };
-        unseen[i] = num_unseen;
-        if unseen.iter().sum::<usize>() == 0 {
+        new[i] = num_new;
+        if new.iter().sum::<usize>() == 0 {
             app.set_icon_from_file("/usr/share/icons/oxygen/base/32x32/status/mail-unread.png")
                 .unwrap();
         } else {
