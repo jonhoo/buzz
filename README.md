@@ -47,9 +47,10 @@ arrive for an account. The options for an account are as follows:
  - `username`: Username for authentication.
  - `pwcmd`: Command to execute to get password for authentication.
  - `notificationcmd`: Additional command to be executed on new messages for this account.
+ - `folder`: Name of the folder to watch (optional; defaults to "INBOX").
 
 # TODOs
 
  - [ ] `click` command
  - [ ] hover tooltip
- - [ ] customizeable folder
+ - [x] customizeable folder

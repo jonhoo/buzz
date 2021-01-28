@@ -22,6 +22,7 @@ struct Account {
     username: String,
     password: String,
     notification_command: Option<String>,
+    folder: Option<String>,
 }
 
 impl Account {
@@ -40,7 +41,11 @@ impl Account {
                         .join(","),
                 ));
             }
-            c.select("INBOX")?;
+
+            // if a folder is specified in config, use it otherwise use INBOX
+            let folder = self.folder.clone().unwrap_or("INBOX".into());
+            c.select(folder)?;
+
             Ok(Connection {
                 account: self.clone(),
                 socket: c,
@@ -304,6 +309,10 @@ fn main() {
                                 None => return parse_failed("notificationcmd", "string"),
                             },
                         ),
+                        folder: t.get("folder").and_then(|raw_v| match raw_v.as_str() {
+                            Some(v) => Some(v.to_string()),
+                            None => return parse_failed("folder", "string"),
+                        }),
                     })
                 }
             })
