@@ -51,6 +51,6 @@ arrive for an account. The options for an account are as follows:
 
 # TODOs
 
- - [ ] `click` command
+ - [x] `click` command
  - [ ] hover tooltip
  - [x] customizeable folder
