@@ -15,7 +15,21 @@ use std::time::Duration;
 
 use directories_next::ProjectDirs;
 
+#[cfg(feature = "systray")]
 mod tray_icon;
+
+#[cfg(not(feature = "systray"))]
+mod tray_icon {
+    pub struct TrayIcon;
+
+    impl TrayIcon {
+        pub fn new(_tx: std::sync::mpsc::Sender<Option<(usize, usize)>>) -> Result<Self, ()> {
+            Ok(Self {})
+        }
+
+        pub fn set_icon(&self, _icon: super::Icon) {}
+    }
+}
 
 #[derive(Clone)]
 struct Account {
