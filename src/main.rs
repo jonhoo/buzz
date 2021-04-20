@@ -246,13 +246,6 @@ fn parse_failed<T>(key: &str, typename: &str) -> Option<T> {
     None
 }
 
-pub enum Icon {
-    Connected,
-    Disconnected,
-    UnreadMail,
-    NewMail,
-}
-
 fn main() {
     // Load the user's config
     let config = ProjectDirs::from("", "", "buzz")
@@ -396,7 +389,7 @@ fn main() {
     }
 
     // We have now connected
-    tray_icon.set_icon(Icon::Connected);
+    tray_icon.set_icon(tray_icon::Icon::Connected);
 
     let mut new: Vec<_> = accounts.iter().map(|_| 0).collect();
     for (i, conn) in accounts.into_iter().enumerate() {
@@ -414,9 +407,9 @@ fn main() {
         };
         new[i] = num_new;
         if new.iter().sum::<usize>() == 0 {
-            tray_icon.set_icon(Icon::UnreadMail);
+            tray_icon.set_icon(tray_icon::Icon::UnreadMail);
         } else {
-            tray_icon.set_icon(Icon::NewMail);
+            tray_icon.set_icon(tray_icon::Icon::NewMail);
         }
     }
 }
