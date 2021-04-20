@@ -18,19 +18,6 @@ use directories_next::ProjectDirs;
 #[cfg(feature = "systray")]
 mod tray_icon;
 
-#[cfg(not(feature = "systray"))]
-mod tray_icon {
-    pub struct TrayIcon;
-
-    impl TrayIcon {
-        pub fn new(_tx: std::sync::mpsc::Sender<Option<(usize, usize)>>) -> Result<Self, ()> {
-            Ok(Self {})
-        }
-
-        pub fn set_icon(&self, _icon: super::Icon) {}
-    }
-}
-
 #[derive(Clone)]
 struct Account {
     name: String,
@@ -346,6 +333,7 @@ fn main() {
 
     let (tx, rx) = mpsc::channel();
 
+    #[cfg(feature = "systray")]
     let tray_icon = match tray_icon::TrayIcon::new(tx.clone()) {
         Ok(tray_icon) => tray_icon,
         Err(()) => {
@@ -389,6 +377,7 @@ fn main() {
     }
 
     // We have now connected
+    #[cfg(feature = "systray")]
     tray_icon.set_icon(tray_icon::Icon::Connected);
 
     let mut new: Vec<_> = accounts.iter().map(|_| 0).collect();
@@ -406,6 +395,8 @@ fn main() {
             break;
         };
         new[i] = num_new;
+
+        #[cfg(feature = "systray")]
         if new.iter().sum::<usize>() == 0 {
             tray_icon.set_icon(tray_icon::Icon::UnreadMail);
         } else {
