@@ -15,6 +15,9 @@ use std::time::Duration;
 
 use directories_next::ProjectDirs;
 
+#[cfg(feature = "systray")]
+mod tray_icon;
+
 #[derive(Clone)]
 struct Account {
     name: String,
@@ -328,28 +331,15 @@ fn main() {
         return;
     }
 
-    // Create a new application
-    let mut app = match systray::Application::new() {
-        Ok(app) => app,
-        Err(e) => {
-            println!("Could not create gtk application: {}", e);
+    let (tx, rx) = mpsc::channel();
+
+    #[cfg(feature = "systray")]
+    let tray_icon = match tray_icon::TrayIcon::new(tx.clone()) {
+        Ok(tray_icon) => tray_icon,
+        Err(()) => {
             return;
         }
     };
-    if let Err(e) = app.set_icon_from_file("/usr/share/icons/Faenza/stock/24/stock_disconnect.png")
-    {
-        println!("Could not set application icon: {}", e);
-    }
-
-    let (tx, rx) = mpsc::channel();
-    let tx_close = std::sync::Mutex::new(tx.clone());
-    if let Err(e) = app.add_menu_item("Quit", move |window| {
-        tx_close.lock().unwrap().send(None).unwrap();
-        window.quit();
-        Ok::<_, systray::Error>(())
-    }) {
-        println!("Could not add application Quit menu option: {}", e);
-    }
 
     // TODO: w.set_tooltip(&"Whatever".to_string());
     // TODO: app.wait_for_message();
@@ -387,8 +377,8 @@ fn main() {
     }
 
     // We have now connected
-    app.set_icon_from_file("/usr/share/icons/Faenza/stock/24/stock_connect.png")
-        .ok();
+    #[cfg(feature = "systray")]
+    tray_icon.set_icon(tray_icon::Icon::Connected);
 
     let mut new: Vec<_> = accounts.iter().map(|_| 0).collect();
     for (i, conn) in accounts.into_iter().enumerate() {
@@ -405,12 +395,12 @@ fn main() {
             break;
         };
         new[i] = num_new;
+
+        #[cfg(feature = "systray")]
         if new.iter().sum::<usize>() == 0 {
-            app.set_icon_from_file("/usr/share/icons/oxygen/base/32x32/status/mail-unread.png")
-                .unwrap();
+            tray_icon.set_icon(tray_icon::Icon::UnreadMail);
         } else {
-            app.set_icon_from_file("/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png")
-                .unwrap();
+            tray_icon.set_icon(tray_icon::Icon::NewMail);
         }
     }
 }

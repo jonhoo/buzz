@@ -22,10 +22,13 @@ maintenance = { status = "passively-maintained" }
 [profile.release]
 debug=true
 
+[features]
+default = ["systray"]
+
 [dependencies]
 imap = "2.0"
 native-tls = "0.2"
-systray = "0.4"
+systray = { version = "0.4", optional = true }
 mailparse = "0.13"
 toml = "0.5"
 notify-rust = "4.0.0-beta.2"
