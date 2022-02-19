@@ -1,7 +1,8 @@
 #![warn(rust_2018_idioms)]
 
-use native_tls::{TlsConnector, TlsStream};
+use anyhow::Context;
 use rayon::prelude::*;
+use rustls::{ClientConnection, StreamOwned};
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -29,30 +30,32 @@ struct Account {
 }
 
 impl Account {
-    pub fn connect(&self) -> Result<Connection<TlsStream<TcpStream>>, imap::error::Error> {
-        let tls = TlsConnector::builder().build()?;
-        imap::connect((&*self.server.0, self.server.1), &self.server.0, &tls).and_then(|c| {
-            let mut c = c
-                .login(self.username.trim(), self.password.trim())
-                .map_err(|(e, _)| e)?;
-            let cap = c.capabilities()?;
-            if !cap.has_str("IDLE") {
-                return Err(imap::error::Error::Bad(
-                    cap.iter()
-                        .map(|s| format!("{:?}", s))
-                        .collect::<Vec<_>>()
-                        .join(","),
-                ));
-            }
+    pub fn connect(&self) -> anyhow::Result<Connection<StreamOwned<ClientConnection, TcpStream>>> {
+        let c = imap::ClientBuilder::new(&*self.server.0, self.server.1)
+            .rustls()
+            .context("connect")?;
+        let mut c = c
+            .login(self.username.trim(), self.password.trim())
+            .map_err(|(e, _)| e)
+            .context("login")?;
+        let cap = c.capabilities().context("get capabilities")?;
+        if !cap.has_str("IDLE") {
+            anyhow::bail!(
+                "server does not support IDLE (in [{}])",
+                cap.iter()
+                    .map(|s| format!("{:?}", s))
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        }
 
-            // if a folder is specified in config, use it otherwise use INBOX
-            let folder = self.folder.clone().unwrap_or("INBOX".into());
-            c.select(folder)?;
+        // if a folder is specified in config, use it otherwise use INBOX
+        let folder = self.folder.clone().unwrap_or("INBOX".into());
+        c.select(folder).context("select folder")?;
 
-            Ok(Connection {
-                account: self.clone(),
-                socket: c,
-            })
+        Ok(Connection {
+            account: self.clone(),
+            socket: c,
         })
     }
 }
@@ -100,14 +103,17 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
         &mut self,
         account: usize,
         tx: &mut mpsc::Sender<Option<(usize, usize)>>,
-    ) -> Result<(), imap::error::Error> {
+    ) -> anyhow::Result<()> {
         // Keep track of all the e-mails we have already notified about
         let mut last_notified = 0;
         let mut notification = None::<notify_rust::NotificationHandle>;
 
         loop {
             // check current state of inbox
-            let mut uids = self.socket.uid_search("NEW 1:*")?;
+            let mut uids = self
+                .socket
+                .uid_search("NEW 1:*")
+                .context("uid search NEW 1:*")?;
             let num_new = uids.len();
             if uids.iter().all(|&uid| uid <= last_notified) {
                 // there are no messages we haven't already notified about
@@ -120,7 +126,8 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 let uids: Vec<_> = uids.into_iter().map(|v: u32| format!("{}", v)).collect();
                 for msg in self
                     .socket
-                    .uid_fetch(&uids.join(","), "RFC822.HEADER")?
+                    .uid_fetch(&uids.join(","), "RFC822.HEADER")
+                    .context("fetch UIDs with headers")?
                     .iter()
                 {
                     let msg = msg.header();
@@ -222,7 +229,10 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
             }
 
             // IDLE until we see changes
-            self.socket.idle()?.wait_keepalive()?;
+            self.socket
+                .idle()
+                .wait_while(imap::extensions::idle::stop_on_any)
+                .context("IDLE failed")?;
         }
     }
 }
@@ -351,20 +361,22 @@ fn main() {
             for _ in 0..5 {
                 match account.connect() {
                     Ok(c) => return Some(c),
-                    Err(imap::error::Error::Io(e)) => {
-                        println!(
-                            "Failed to connect account {}: {}; retrying in {}s",
-                            account.name, e, wait
-                        );
-                        thread::sleep(Duration::from_secs(wait));
-                    }
                     Err(e) => {
+                        if let Some(e) = e.downcast_ref::<imap::error::Error>() {
+                            if let imap::error::Error::Io(e) = e {
+                                println!(
+                                    "Failed to connect account {}: {}; retrying in {}s",
+                                    account.name, e, wait
+                                );
+                                thread::sleep(Duration::from_secs(wait));
+                                wait *= 2;
+                                continue;
+                            }
+                        }
                         println!("{} host produced bad IMAP tunnel: {:?}", account.name, e);
                         break;
                     }
                 }
-
-                wait *= 2;
             }
 
             None

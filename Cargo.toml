@@ -26,13 +26,14 @@ debug=true
 default = ["systray"]
 
 [dependencies]
-imap = "2.0"
-native-tls = "0.2"
+anyhow = "1"
+imap = { version = "=3.0.0-alpha.6", features = ["rustls-tls"] }
 systray = { version = "0.4", optional = true }
 mailparse = "0.13"
 toml = "0.5"
 notify-rust = "4.0.0-beta.2"
 rayon = "1.0.0"
+rustls = "0.20"
 askama_escape = "0.10"
 chrono = "0.4"
 directories-next = "2"
