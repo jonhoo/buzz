@@ -1,6 +1,6 @@
 [package]
 name = "buzz"
-version = "1.6.0"
+version = "1.7.0-rc.1"
 edition = "2021"
 
 description = "A simple system tray application for notifying about unseen e-mail"
