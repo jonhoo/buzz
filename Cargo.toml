@@ -1,6 +1,6 @@
 [package]
 name = "buzz"
-version = "1.7.0-rc.1"
+version = "1.7.0-rc.2"
 edition = "2021"
 
 description = "A simple system tray application for notifying about unseen e-mail"
@@ -27,7 +27,7 @@ default = ["systray"]
 
 [dependencies]
 anyhow = "1"
-imap = { version = "=3.0.0-alpha.6", features = ["rustls-tls"] }
+imap = { version = "=3.0.0-alpha.8", features = ["rustls-tls"] }
 systray = { version = "0.4", optional = true }
 mailparse = "0.13"
 toml = "0.5"
@@ -37,3 +37,6 @@ rustls = "0.20"
 askama_escape = "0.10"
 chrono = "0.4"
 directories-next = "2"
+
+#[patch.crates-io]
+#imap = { path = "/home/jon/dev/minor/imap" }
