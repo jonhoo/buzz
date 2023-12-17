@@ -1,14 +1,13 @@
 #![warn(rust_2018_idioms)]
 
 use anyhow::Context;
+use imap::ImapConnection;
 use rayon::prelude::*;
-use rustls::{ClientConnection, StreamOwned};
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::prelude::*;
-use std::net::TcpStream;
 use std::process::Command;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -37,9 +36,11 @@ struct AccountFolder {
 }
 
 impl AccountFolder {
-    pub fn connect(&self) -> anyhow::Result<Connection<StreamOwned<ClientConnection, TcpStream>>> {
+    pub fn connect(&self) -> anyhow::Result<Connection<Box<dyn ImapConnection>>> {
         let c = imap::ClientBuilder::new(&*self.account.server.0, self.account.server.1)
-            .rustls()
+            .mode(imap::ConnectionMode::AutoTls)
+            .tls_kind(imap::TlsKind::Rust)
+            .connect()
             .context("connect")?;
         let mut c = c
             .login(self.account.username.trim(), self.account.password.trim())
@@ -212,7 +213,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 for subject in subjects.values().rev() {
                     body.push_str("> ");
                     body.push_str(subject);
-                    body.push_str("\n");
+                    body.push('\n');
                 }
                 let body = body.trim_end();
 
@@ -337,7 +338,7 @@ fn main() {
                         notification_command: t.get("notificationcmd").and_then(
                             |raw_v| match raw_v.as_str() {
                                 Some(v) => Some(v.to_string()),
-                                None => return parse_failed("notificationcmd", "string"),
+                                None => parse_failed("notificationcmd", "string"),
                             },
                         ),
                         folders: {
@@ -426,16 +427,16 @@ fn main() {
                 match account_folder.connect() {
                     Ok(c) => return Some(c),
                     Err(e) => {
-                        if let Some(e) = e.downcast_ref::<imap::error::Error>() {
-                            if let imap::error::Error::Io(e) = e {
-                                println!(
-                                    "Failed to connect account {}: {}; retrying in {}s",
-                                    account_folder.account.name, e, wait
-                                );
-                                thread::sleep(Duration::from_secs(wait));
-                                wait *= 2;
-                                continue;
-                            }
+                        if let Some(imap::error::Error::Io(e)) =
+                            e.downcast_ref::<imap::error::Error>()
+                        {
+                            println!(
+                                "Failed to connect account {}: {}; retrying in {}s",
+                                account_folder.account.name, e, wait
+                            );
+                            thread::sleep(Duration::from_secs(wait));
+                            wait *= 2;
+                            continue;
                         }
                         println!(
                             "{} host produced bad IMAP tunnel: {:?}",
