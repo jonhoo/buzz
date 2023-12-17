@@ -1,14 +1,13 @@
 #![warn(rust_2018_idioms)]
 
 use anyhow::Context;
+use imap::ImapConnection;
 use rayon::prelude::*;
-use rustls::{ClientConnection, StreamOwned};
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::prelude::*;
-use std::net::TcpStream;
 use std::process::Command;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -37,9 +36,11 @@ struct AccountFolder {
 }
 
 impl AccountFolder {
-    pub fn connect(&self) -> anyhow::Result<Connection<StreamOwned<ClientConnection, TcpStream>>> {
+    pub fn connect(&self) -> anyhow::Result<Connection<Box<dyn ImapConnection>>> {
         let c = imap::ClientBuilder::new(&*self.account.server.0, self.account.server.1)
-            .rustls()
+            .mode(imap::ConnectionMode::AutoTls)
+            .tls_kind(imap::TlsKind::Rust)
+            .connect()
             .context("connect")?;
         let mut c = c
             .login(self.account.username.trim(), self.account.password.trim())
