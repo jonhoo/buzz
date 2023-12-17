@@ -11,6 +11,7 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use std::process::Command;
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -26,16 +27,22 @@ struct Account {
     username: String,
     password: String,
     notification_command: Option<String>,
-    folder: Option<String>,
+    folders: Vec<String>,
 }
 
-impl Account {
+#[derive(Clone)]
+struct AccountFolder {
+    account: Arc<Account>,
+    folder: String,
+}
+
+impl AccountFolder {
     pub fn connect(&self) -> anyhow::Result<Connection<StreamOwned<ClientConnection, TcpStream>>> {
-        let c = imap::ClientBuilder::new(&*self.server.0, self.server.1)
+        let c = imap::ClientBuilder::new(&*self.account.server.0, self.account.server.1)
             .rustls()
             .context("connect")?;
         let mut c = c
-            .login(self.username.trim(), self.password.trim())
+            .login(self.account.username.trim(), self.account.password.trim())
             .map_err(|(e, _)| e)
             .context("login")?;
         let cap = c.capabilities().context("get capabilities")?;
@@ -49,19 +56,18 @@ impl Account {
             );
         }
 
-        // if a folder is specified in config, use it otherwise use INBOX
-        let folder = self.folder.clone().unwrap_or("INBOX".into());
+        let folder = self.folder.clone();
         c.select(folder).context("select folder")?;
 
         Ok(Connection {
-            account: self.clone(),
+            account_folder: self.clone(),
             socket: c,
         })
     }
 }
 
 struct Connection<T: Read + Write> {
-    account: Account,
+    account_folder: AccountFolder,
     socket: imap::Session<T>,
 }
 
@@ -71,7 +77,10 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
             if let Err(e) = self.check(account, &mut tx) {
                 // the connection has failed for some reason
                 // try to log out (we probably can't)
-                eprintln!("connection to {} failed: {:?}", self.account.name, e);
+                eprintln!(
+                    "connection to {} failed: {:?}",
+                    self.account_folder.account.name, e
+                );
                 let _ = self.socket.logout();
                 break;
             }
@@ -82,15 +91,21 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
         for _ in 0..5 {
             eprintln!(
                 "connection to {} lost; trying to reconnect...",
-                self.account.name
+                self.account_folder.account.name
             );
-            match self.account.connect() {
+            match self.account_folder.connect() {
                 Ok(c) => {
-                    println!("{} connection reestablished", self.account.name);
+                    println!(
+                        "{} connection reestablished",
+                        self.account_folder.account.name
+                    );
                     return c.handle(account, tx);
                 }
                 Err(e) => {
-                    eprintln!("failed to connect to {}: {:?}", self.account.name, e);
+                    eprintln!(
+                        "failed to connect to {}: {:?}",
+                        self.account_folder.account.name, e
+                    );
                     thread::sleep(Duration::from_secs(wait));
                 }
             }
@@ -163,13 +178,13 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
             }
 
             if !subjects.is_empty() {
-                if let Some(notificationcmd) = &self.account.notification_command {
+                if let Some(notificationcmd) = &self.account_folder.account.notification_command {
                     match Command::new("sh").arg("-c").arg(notificationcmd).status() {
                         Ok(s) if s.success() => {}
                         Ok(s) => {
                             eprint!(
                                 "Notification command for {} did not exit successfully.",
-                                self.account.name
+                                self.account_folder.account.name
                             );
                             if let Some(exit_code) = s.code() {
                                 eprintln!(" Exit code: {}", exit_code);
@@ -180,14 +195,17 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                         Err(e) => {
                             eprintln!(
                                 "Could not execute notification command for {}: {}",
-                                self.account.name, e
+                                self.account_folder.account.name, e
                             );
                         }
                     }
                 }
 
                 use notify_rust::{Hint, Notification};
-                let title = format!("@{} has new mail ({})", self.account.name, num_new);
+                let title = format!(
+                    "@{} has new mail ({})",
+                    self.account_folder.account.name, num_new
+                );
 
                 // we want the n newest e-mail in reverse chronological order
                 let mut body = String::new();
@@ -322,10 +340,43 @@ fn main() {
                                 None => return parse_failed("notificationcmd", "string"),
                             },
                         ),
-                        folder: t.get("folder").and_then(|raw_v| match raw_v.as_str() {
-                            Some(v) => Some(v.to_string()),
-                            None => return parse_failed("folder", "string"),
-                        }),
+                        folders: {
+                            // Parse the folders field
+                            let mut folders: Vec<String> = t
+                                .get("folders")
+                                .and_then(|raw_v| {
+                                    raw_v
+                                        .as_array()
+                                        .map(|v| {
+                                            v.iter()
+                                                .filter_map(|raw_v| {
+                                                    raw_v
+                                                        .as_str()
+                                                        .map(|v| v.to_string())
+                                                        .or_else(|| parse_failed("folders", "str"))
+                                                })
+                                                .collect()
+                                        })
+                                        .or_else(|| parse_failed("folders", "array"))
+                                })
+                                .unwrap_or_default();
+
+                            // Parse the old folder field and push it to the list of folders
+                            if let Some(folder) = t.get("folder").and_then(|raw_v| {
+                                raw_v
+                                    .as_str()
+                                    .map(|x| x.to_string())
+                                    .or_else(|| parse_failed("folder", "string"))
+                            }) {
+                                folders.push(folder);
+                            }
+
+                            if folders.is_empty() {
+                                vec![String::from("INBOX")]
+                            } else {
+                                folders
+                            }
+                        },
                     })
                 }
             })
@@ -341,6 +392,18 @@ fn main() {
         return;
     }
 
+    let mut account_folders = Vec::new();
+
+    for account in accounts {
+        let account_ref = Arc::new(account);
+        for folder in &account_ref.folders {
+            account_folders.push(AccountFolder {
+                account: Arc::clone(&account_ref),
+                folder: folder.clone(),
+            });
+        }
+    }
+
     let (tx, rx) = mpsc::channel();
 
     #[cfg(feature = "systray")]
@@ -354,26 +417,29 @@ fn main() {
     // TODO: w.set_tooltip(&"Whatever".to_string());
     // TODO: app.wait_for_message();
 
-    let accounts: Vec<_> = accounts
+    let accounts: Vec<_> = account_folders
         .par_iter()
-        .filter_map(|account| {
+        .filter_map(|account_folder| {
             let mut wait = 1;
             for _ in 0..5 {
-                match account.connect() {
+                match account_folder.connect() {
                     Ok(c) => return Some(c),
                     Err(e) => {
                         if let Some(e) = e.downcast_ref::<imap::error::Error>() {
                             if let imap::error::Error::Io(e) = e {
                                 println!(
                                     "Failed to connect account {}: {}; retrying in {}s",
-                                    account.name, e, wait
+                                    account_folder.account.name, e, wait
                                 );
                                 thread::sleep(Duration::from_secs(wait));
                                 wait *= 2;
                                 continue;
                             }
                         }
-                        println!("{} host produced bad IMAP tunnel: {:?}", account.name, e);
+                        println!(
+                            "{} host produced bad IMAP tunnel: {:?}",
+                            account_folder.account.name, e
+                        );
                         break;
                     }
                 }
