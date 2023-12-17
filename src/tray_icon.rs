@@ -6,30 +6,48 @@ pub(crate) enum Icon {
 }
 
 pub(crate) struct TrayIcon {
+    icons: Icons,
     app: tray_item::TrayItem,
 }
 
-impl TrayIcon {
-    pub(crate) fn new(default_icon: Icon) -> anyhow::Result<Self> {
-        let icon = get_icon(default_icon);
-        let tray = tray_item::TrayItem::new("Buzz", tray_item::IconSource::Resource(icon))?;
+pub(crate) struct Icons {
+    pub(crate) connected: &'static str,
+    pub(crate) disconnected: &'static str,
+    pub(crate) unread: &'static str,
+    pub(crate) new_mail: &'static str,
+}
 
-        Ok(TrayIcon { app: tray })
-    }
-
-    pub(crate) fn set_icon(&mut self, icon: Icon) -> anyhow::Result<()> {
-        self.app
-            .set_icon(tray_item::IconSource::Resource(get_icon(icon)))?;
-
-        Ok(())
+impl Icons {
+    fn get_icon(&self, icon: Icon) -> &'static str {
+        match icon {
+            Icon::Connected => self.connected,
+            Icon::Disconnected => self.disconnected,
+            Icon::UnreadMail => self.unread,
+            Icon::NewMail => self.new_mail,
+        }
     }
 }
 
-pub(crate) fn get_icon(icon: Icon) -> &'static str {
-    match icon {
-        Icon::Connected => "/usr/share/icons/Faenza/stock/24/stock_connect.png",
-        Icon::Disconnected => "/usr/share/icons/Faenza/stock/24/stock_disconnect.png",
-        Icon::UnreadMail => "/usr/share/icons/oxygen/base/32x32/status/mail-unread.png",
-        Icon::NewMail => "/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png",
+pub(crate) const DEFAULT_ICONS: Icons = Icons {
+    connected: "/usr/share/icons/Faenza/stock/24/stock_connect.png",
+    disconnected: "/usr/share/icons/Faenza/stock/24/stock_disconnect.png",
+    unread: "/usr/share/icons/oxygen/base/32x32/status/mail-unread.png",
+    new_mail: "/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png",
+};
+
+impl TrayIcon {
+    pub(crate) fn new(icons: Icons) -> anyhow::Result<Self> {
+        let tray =
+            tray_item::TrayItem::new("Buzz", tray_item::IconSource::Resource(icons.disconnected))?;
+
+        Ok(TrayIcon { app: tray, icons })
+    }
+
+    pub(crate) fn set_icon(&mut self, icon: Icon) -> anyhow::Result<()> {
+        let icon_loc = self.icons.get_icon(icon);
+        self.app
+            .set_icon(tray_item::IconSource::Resource(icon_loc))?;
+
+        Ok(())
     }
 }

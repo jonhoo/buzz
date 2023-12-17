@@ -291,99 +291,123 @@ fn main() {
         }
     };
 
-    // Figure out what accounts we have to deal with
-    let accounts: Vec<_> = match config.as_table() {
-        Some(t) => t
-            .iter()
-            .filter_map(|(name, v)| match v.as_table() {
-                None => {
-                    println!("Configuration for account {} is broken: not a table", name);
-                    None
-                }
-                Some(t) => {
-                    let pwcmd = match t.get("pwcmd").and_then(|p| p.as_str()) {
-                        None => return None,
-                        Some(pwcmd) => pwcmd,
-                    };
-
-                    let password = match Command::new("sh").arg("-c").arg(pwcmd).output() {
-                        Ok(output) => String::from_utf8_lossy(&output.stdout).into_owned(),
-                        Err(e) => {
-                            println!("Failed to launch password command for {}: {}", name, e);
+    let accounts: Vec<_> = match config.get("account") {
+        None => {
+            println!("No accounts configured");
+            return;
+        }
+        Some(toml::Value::Array(account)) => {
+            account
+                .iter()
+                .enumerate()
+                .filter_map(|(i, v)| {
+                    match v.as_table() {
+                        None => {
+                            println!("Account configuration broken. It is not a table");
                             return None;
                         }
-                    };
-
-                    Some(Account {
-                        name: name.as_str().to_owned(),
-                        server: (
-                            match t["server"].as_str() {
-                                Some(v) => v.to_owned(),
-                                None => return parse_failed("server", "string"),
-                            },
-                            match t["port"].as_integer() {
-                                Some(v) => v as u16,
-                                None => {
-                                    return parse_failed("port", "integer");
+                        Some(t) => {
+                            let name = match t.get("name") {
+                                Some(toml::Value::String(name)) => name,
+                                Some(_) => {
+                                    println!("Account #{} name is not a string", i);
+                                    return None;
                                 }
-                            },
-                        ),
-                        username: match t["username"].as_str() {
-                            Some(v) => v.to_owned(),
-                            None => {
-                                return parse_failed("username", "string");
-                            }
-                        },
-                        password,
-                        notification_command: t.get("notificationcmd").and_then(
-                            |raw_v| match raw_v.as_str() {
-                                Some(v) => Some(v.to_string()),
-                                None => parse_failed("notificationcmd", "string"),
-                            },
-                        ),
-                        folders: {
-                            // Parse the folders field
-                            let mut folders: Vec<String> = t
-                                .get("folders")
-                                .and_then(|raw_v| {
-                                    raw_v
-                                        .as_array()
-                                        .map(|v| {
-                                            v.iter()
-                                                .filter_map(|raw_v| {
-                                                    raw_v
-                                                        .as_str()
-                                                        .map(|v| v.to_string())
-                                                        .or_else(|| parse_failed("folders", "str"))
+                                None => {
+                                    println!("Account #{} has no name", i);
+                                    return None;
+                                }
+                            };
+                            let pwcmd = match t.get("pwcmd").and_then(|p| p.as_str()) {
+                                None => return None,
+                                Some(pwcmd) => pwcmd,
+                            };
+
+                            let password = match Command::new("sh").arg("-c").arg(pwcmd).output() {
+                                Ok(output) => String::from_utf8_lossy(&output.stdout).into_owned(),
+                                Err(e) => {
+                                    println!(
+                                        "Failed to launch password command for {}: {}",
+                                        name, e
+                                    );
+                                    return None;
+                                }
+                            };
+
+                            Some(Account {
+                                name: name.as_str().to_owned(),
+                                server: (
+                                    match t["server"].as_str() {
+                                        Some(v) => v.to_owned(),
+                                        None => return parse_failed("server", "string"),
+                                    },
+                                    match t["port"].as_integer() {
+                                        Some(v) => v as u16,
+                                        None => {
+                                            return parse_failed("port", "integer");
+                                        }
+                                    },
+                                ),
+                                username: match t["username"].as_str() {
+                                    Some(v) => v.to_owned(),
+                                    None => {
+                                        return parse_failed("username", "string");
+                                    }
+                                },
+                                password,
+                                notification_command: t.get("notificationcmd").and_then(|raw_v| {
+                                    match raw_v.as_str() {
+                                        Some(v) => Some(v.to_string()),
+                                        None => parse_failed("notificationcmd", "string"),
+                                    }
+                                }),
+                                folders: {
+                                    // Parse the folders field
+                                    let mut folders: Vec<String> = t
+                                        .get("folders")
+                                        .and_then(|raw_v| {
+                                            raw_v
+                                                .as_array()
+                                                .map(|v| {
+                                                    v.iter()
+                                                        .filter_map(|raw_v| {
+                                                            raw_v
+                                                                .as_str()
+                                                                .map(|v| v.to_string())
+                                                                .or_else(|| {
+                                                                    parse_failed("folders", "str")
+                                                                })
+                                                        })
+                                                        .collect()
                                                 })
-                                                .collect()
+                                                .or_else(|| parse_failed("folders", "array"))
                                         })
-                                        .or_else(|| parse_failed("folders", "array"))
-                                })
-                                .unwrap_or_default();
+                                        .unwrap_or_default();
 
-                            // Parse the old folder field and push it to the list of folders
-                            if let Some(folder) = t.get("folder").and_then(|raw_v| {
-                                raw_v
-                                    .as_str()
-                                    .map(|x| x.to_string())
-                                    .or_else(|| parse_failed("folder", "string"))
-                            }) {
-                                folders.push(folder);
-                            }
+                                    // Parse the old folder field and push it to the list of folders
+                                    if let Some(folder) = t.get("folder").and_then(|raw_v| {
+                                        raw_v
+                                            .as_str()
+                                            .map(|x| x.to_string())
+                                            .or_else(|| parse_failed("folder", "string"))
+                                    }) {
+                                        folders.push(folder);
+                                    }
 
-                            if folders.is_empty() {
-                                vec![String::from("INBOX")]
-                            } else {
-                                folders
-                            }
-                        },
-                    })
-                }
-            })
-            .collect(),
-        None => {
-            println!("Could not parse configuration file buzz.toml: not a table");
+                                    if folders.is_empty() {
+                                        vec![String::from("INBOX")]
+                                    } else {
+                                        folders
+                                    }
+                                },
+                            })
+                        }
+                    }
+                })
+                .collect()
+        }
+        Some(_) => {
+            println!("Accounts should be an array of tables: [[account]]");
             return;
         }
     };
@@ -408,14 +432,57 @@ fn main() {
     let (tx, rx) = mpsc::channel();
 
     #[cfg(feature = "systray")]
-    let mut tray_icon = match tray_icon::TrayIcon::new(tray_icon::Icon::Disconnected) {
-        Ok(tray_icon) => tray_icon,
-        Err(e) => {
-            eprintln!("Could not create tray item\n{}", e);
-            return;
+    let mut tray_icon = {
+        let icons: tray_icon::Icons = match config.get("icons") {
+            Some(toml::Value::Table(v)) => tray_icon::Icons {
+                connected: v
+                    .get("connected")
+                    .and_then(|v| {
+                        v.as_str().map(String::from).map(|s| {
+                            let x: &'static str = Box::leak(s.into_boxed_str());
+                            x
+                        })
+                    })
+                    .unwrap_or(tray_icon::DEFAULT_ICONS.connected),
+                disconnected: v
+                    .get("disconnected")
+                    .and_then(|v| {
+                        v.as_str().map(String::from).map(|s| {
+                            let x: &'static str = Box::leak(s.into_boxed_str());
+                            x
+                        })
+                    })
+                    .unwrap_or(tray_icon::DEFAULT_ICONS.connected),
+                unread: v
+                    .get("unread")
+                    .and_then(|v| {
+                        v.as_str().map(String::from).map(|s| {
+                            let x: &'static str = Box::leak(s.into_boxed_str());
+                            x
+                        })
+                    })
+                    .unwrap_or(tray_icon::DEFAULT_ICONS.unread),
+                new_mail: v
+                    .get("new_mail")
+                    .and_then(|v| {
+                        v.as_str().map(String::from).map(|s| {
+                            let x: &'static str = Box::leak(s.into_boxed_str());
+                            x
+                        })
+                    })
+                    .unwrap_or(tray_icon::DEFAULT_ICONS.new_mail),
+            },
+            _ => tray_icon::DEFAULT_ICONS,
+        };
+
+        match tray_icon::TrayIcon::new(icons) {
+            Ok(tray_icon) => tray_icon,
+            Err(e) => {
+                eprintln!("Could not create tray item\n{}", e);
+                return;
+            }
         }
     };
-
     // TODO: w.set_tooltip(&"Whatever".to_string());
     // TODO: app.wait_for_message();
 
