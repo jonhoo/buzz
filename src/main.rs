@@ -407,9 +407,10 @@ fn main() {
     let (tx, rx) = mpsc::channel();
 
     #[cfg(feature = "systray")]
-    let tray_icon = match tray_icon::TrayIcon::new(tx.clone()) {
+    let mut tray_icon = match tray_icon::TrayIcon::new(tray_icon::Icon::Disconnected) {
         Ok(tray_icon) => tray_icon,
-        Err(()) => {
+        Err(e) => {
+            eprintln!("Could not create tray item\n{}", e);
             return;
         }
     };
@@ -456,7 +457,9 @@ fn main() {
 
     // We have now connected
     #[cfg(feature = "systray")]
-    tray_icon.set_icon(tray_icon::Icon::Connected);
+    if let Err(e) = tray_icon.set_icon(tray_icon::Icon::Connected) {
+        eprintln!("Unable to set tray icon\n{}", e);
+    };
 
     let mut new: Vec<_> = accounts.iter().map(|_| 0).collect();
     for (i, conn) in accounts.into_iter().enumerate() {
@@ -475,10 +478,15 @@ fn main() {
         new[i] = num_new;
 
         #[cfg(feature = "systray")]
-        if new.iter().sum::<usize>() == 0 {
-            tray_icon.set_icon(tray_icon::Icon::UnreadMail);
-        } else {
-            tray_icon.set_icon(tray_icon::Icon::NewMail);
+        {
+            let icon = if new.iter().sum::<usize>() == 0 {
+                tray_icon::Icon::UnreadMail
+            } else {
+                tray_icon::Icon::NewMail
+            };
+            if let Err(e) = tray_icon.set_icon(icon) {
+                eprintln!("Could not set tray icon\n{}", e);
+            }
         }
     }
 }

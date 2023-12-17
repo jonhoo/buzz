@@ -1,5 +1,3 @@
-use std::sync::mpsc;
-
 pub(crate) enum Icon {
     Connected,
     Disconnected,
@@ -8,41 +6,30 @@ pub(crate) enum Icon {
 }
 
 pub(crate) struct TrayIcon {
-    app: systray::Application,
+    app: tray_item::TrayItem,
 }
 
 impl TrayIcon {
-    pub(crate) fn new(tx: mpsc::Sender<Option<(usize, usize)>>) -> Result<Self, ()> {
-        let mut icon = match systray::Application::new() {
-            Ok(app) => Ok(Self { app }),
-            Err(e) => {
-                eprintln!("Could not create gtk application: {}", e);
-                Err(())
-            }
-        }?;
-        icon.set_icon(Icon::Disconnected);
+    pub(crate) fn new(default_icon: Icon) -> anyhow::Result<Self> {
+        let icon = get_icon(default_icon);
+        let tray = tray_item::TrayItem::new("Buzz", tray_item::IconSource::Resource(icon))?;
 
-        let tx = std::sync::Mutex::new(tx);
-        if let Err(e) = icon.app.add_menu_item("Quit", move |window| {
-            tx.lock().unwrap().send(None).unwrap();
-            window.quit();
-            Ok::<_, systray::Error>(())
-        }) {
-            eprintln!("Could not add application Quit menu option: {}", e);
-        }
-
-        Ok(icon)
+        Ok(TrayIcon { app: tray })
     }
 
-    pub(crate) fn set_icon(&self, icon: Icon) {
-        let file = match icon {
-            Icon::Connected => "/usr/share/icons/Faenza/stock/24/stock_connect.png",
-            Icon::Disconnected => "/usr/share/icons/Faenza/stock/24/stock_disconnect.png",
-            Icon::UnreadMail => "/usr/share/icons/oxygen/base/32x32/status/mail-unread.png",
-            Icon::NewMail => "/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png",
-        };
-        if let Err(e) = self.app.set_icon_from_file(file) {
-            eprintln!("Could not set application icon: {}", e);
-        }
+    pub(crate) fn set_icon(&mut self, icon: Icon) -> anyhow::Result<()> {
+        self.app
+            .set_icon(tray_item::IconSource::Resource(get_icon(icon)))?;
+
+        Ok(())
+    }
+}
+
+pub(crate) fn get_icon(icon: Icon) -> &'static str {
+    match icon {
+        Icon::Connected => "/usr/share/icons/Faenza/stock/24/stock_connect.png",
+        Icon::Disconnected => "/usr/share/icons/Faenza/stock/24/stock_disconnect.png",
+        Icon::UnreadMail => "/usr/share/icons/oxygen/base/32x32/status/mail-unread.png",
+        Icon::NewMail => "/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png",
     }
 }
