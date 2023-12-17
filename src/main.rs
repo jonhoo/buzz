@@ -56,7 +56,6 @@ impl AccountFolder {
             );
         }
 
-        // if a folder is specified in config, use it otherwise use INBOX
         let folder = self.folder.clone();
         c.select(folder).context("select folder")?;
 
