@@ -2,11 +2,8 @@
 name = "buzz"
 version = "1.7.0-rc.2"
 edition = "2021"
-
-description = "A simple system tray application for notifying about unseen e-mail"
-readme = "README.md"
-
 authors = ["Jon Gjengset <jon@thesquareplanet.com>"]
+description = "A simple system tray application for notifying about unseen e-mail"
 
 homepage = "https://github.com/jonhoo/buzz"
 repository = "https://github.com/jonhoo/buzz.git"
@@ -14,10 +11,7 @@ repository = "https://github.com/jonhoo/buzz.git"
 keywords = ["email","cli","systray","notification"]
 categories = ["command-line-utilities", "email"]
 
-license = "MIT/Apache-2.0"
-
-[badges]
-maintenance = { status = "passively-maintained" }
+license = "MIT OR Apache-2.0"
 
 [profile.release]
 debug=true
@@ -37,6 +31,3 @@ askama_escape = "0.10"
 chrono = "0.4"
 directories-next = "2"
 tray-item = { version = "0.9.0", features=["ksni"], optional = true}
-
-#[patch.crates-io]
-#imap = { path = "/home/jon/dev/minor/imap" }
