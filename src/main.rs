@@ -213,7 +213,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                 for subject in subjects.values().rev() {
                     body.push_str("> ");
                     body.push_str(subject);
-                    body.push_str("\n");
+                    body.push('\n');
                 }
                 let body = body.trim_end();
 
@@ -338,7 +338,7 @@ fn main() {
                         notification_command: t.get("notificationcmd").and_then(
                             |raw_v| match raw_v.as_str() {
                                 Some(v) => Some(v.to_string()),
-                                None => return parse_failed("notificationcmd", "string"),
+                                None => parse_failed("notificationcmd", "string"),
                             },
                         ),
                         folders: {
@@ -427,16 +427,16 @@ fn main() {
                 match account_folder.connect() {
                     Ok(c) => return Some(c),
                     Err(e) => {
-                        if let Some(e) = e.downcast_ref::<imap::error::Error>() {
-                            if let imap::error::Error::Io(e) = e {
-                                println!(
-                                    "Failed to connect account {}: {}; retrying in {}s",
-                                    account_folder.account.name, e, wait
-                                );
-                                thread::sleep(Duration::from_secs(wait));
-                                wait *= 2;
-                                continue;
-                            }
+                        if let Some(imap::error::Error::Io(e)) =
+                            e.downcast_ref::<imap::error::Error>()
+                        {
+                            println!(
+                                "Failed to connect account {}: {}; retrying in {}s",
+                                account_folder.account.name, e, wait
+                            );
+                            thread::sleep(Duration::from_secs(wait));
+                            wait *= 2;
+                            continue;
                         }
                         println!(
                             "{} host produced bad IMAP tunnel: {:?}",
