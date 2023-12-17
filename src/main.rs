@@ -362,7 +362,6 @@ fn main() {
                                 .unwrap_or_default();
 
                             // Parse the old folder field and push it to the list of folders
-                            // TODO: Add deprecation warning
                             if let Some(folder) = t.get("folder").and_then(|raw_v| {
                                 raw_v
                                     .as_str()
