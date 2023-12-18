@@ -439,8 +439,7 @@ fn main() {
                     .get("connected")
                     .and_then(|v| {
                         v.as_str().map(String::from).map(|s| {
-                            let x: &'static str = Box::leak(s.into_boxed_str());
-                            x
+                            Box::leak(s.into_boxed_str()) as &'static str
                         })
                     })
                     .unwrap_or(tray_icon::DEFAULT_ICONS.connected),
@@ -448,8 +447,7 @@ fn main() {
                     .get("disconnected")
                     .and_then(|v| {
                         v.as_str().map(String::from).map(|s| {
-                            let x: &'static str = Box::leak(s.into_boxed_str());
-                            x
+                            Box::leak(s.into_boxed_str()) as &'static str
                         })
                     })
                     .unwrap_or(tray_icon::DEFAULT_ICONS.connected),
@@ -457,8 +455,7 @@ fn main() {
                     .get("unread")
                     .and_then(|v| {
                         v.as_str().map(String::from).map(|s| {
-                            let x: &'static str = Box::leak(s.into_boxed_str());
-                            x
+                            Box::leak(s.into_boxed_str()) as &'static str
                         })
                     })
                     .unwrap_or(tray_icon::DEFAULT_ICONS.unread),
@@ -466,8 +463,7 @@ fn main() {
                     .get("new_mail")
                     .and_then(|v| {
                         v.as_str().map(String::from).map(|s| {
-                            let x: &'static str = Box::leak(s.into_boxed_str());
-                            x
+                            Box::leak(s.into_boxed_str()) as &'static str
                         })
                     })
                     .unwrap_or(tray_icon::DEFAULT_ICONS.new_mail),
