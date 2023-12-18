@@ -438,33 +438,33 @@ fn main() {
                 connected: v
                     .get("connected")
                     .and_then(|v| {
-                        v.as_str().map(String::from).map(|s| {
-                            Box::leak(s.into_boxed_str()) as &'static str
-                        })
+                        v.as_str()
+                            .map(String::from)
+                            .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
                     })
                     .unwrap_or(tray_icon::DEFAULT_ICONS.connected),
                 disconnected: v
                     .get("disconnected")
                     .and_then(|v| {
-                        v.as_str().map(String::from).map(|s| {
-                            Box::leak(s.into_boxed_str()) as &'static str
-                        })
+                        v.as_str()
+                            .map(String::from)
+                            .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
                     })
                     .unwrap_or(tray_icon::DEFAULT_ICONS.connected),
                 unread: v
                     .get("unread")
                     .and_then(|v| {
-                        v.as_str().map(String::from).map(|s| {
-                            Box::leak(s.into_boxed_str()) as &'static str
-                        })
+                        v.as_str()
+                            .map(String::from)
+                            .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
                     })
                     .unwrap_or(tray_icon::DEFAULT_ICONS.unread),
                 new_mail: v
                     .get("new_mail")
                     .and_then(|v| {
-                        v.as_str().map(String::from).map(|s| {
-                            Box::leak(s.into_boxed_str()) as &'static str
-                        })
+                        v.as_str()
+                            .map(String::from)
+                            .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
                     })
                     .unwrap_or(tray_icon::DEFAULT_ICONS.new_mail),
             },
