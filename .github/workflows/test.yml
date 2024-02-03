@@ -44,9 +44,6 @@ jobs:
       # https://twitter.com/jonhoo/status/1571290371124260865
       - name: cargo test --locked
         run: cargo test --locked --all-features --all-targets
-      # https://github.com/rust-lang/cargo/issues/6669
-      - name: cargo test --doc
-        run: cargo test --locked --all-features --doc
   # NOTE: removed the minimal test set since we don't have a [lib]
   os-check:
     # run cargo test on mac and windows
