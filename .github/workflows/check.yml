@@ -59,9 +59,10 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
       - name: cargo clippy
-        uses: actions-rs/clippy-check@v1
+        uses: giraffate/clippy-action@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: 'github-pr-check'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
   # NOTE: removed the doc test set since we don't have a [lib]
   hack:
     # cargo-hack checks combinations of feature flags to ensure that features are all additive
