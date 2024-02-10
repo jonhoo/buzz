@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 pub(crate) enum Icon {
     Connected,
     Disconnected,
@@ -6,41 +8,52 @@ pub(crate) enum Icon {
 }
 
 pub(crate) struct TrayIcon {
-    icons: Icons,
+    icons: &'static Icons,
     app: tray_item::TrayItem,
 }
 
+#[derive(Clone, Deserialize)]
 pub(crate) struct Icons {
-    pub(crate) connected: &'static str,
-    pub(crate) disconnected: &'static str,
-    pub(crate) unread: &'static str,
-    pub(crate) new_mail: &'static str,
+    pub(crate) connected: String,
+    pub(crate) disconnected: String,
+    pub(crate) unread: String,
+    pub(crate) new_mail: String,
 }
 
 impl Icons {
-    fn get_icon(&self, icon: Icon) -> &'static str {
+    fn get_icon(&self, icon: Icon) -> &str {
         match icon {
-            Icon::Connected => self.connected,
-            Icon::Disconnected => self.disconnected,
-            Icon::UnreadMail => self.unread,
-            Icon::NewMail => self.new_mail,
+            Icon::Connected => &self.connected,
+            Icon::Disconnected => &self.disconnected,
+            Icon::UnreadMail => &self.unread,
+            Icon::NewMail => &self.new_mail,
+        }
+    }
+
+    fn get_default() -> Self {
+        Self {
+            connected: String::from("/usr/share/icons/Faenza/stock/24/stock_connect.png"),
+            disconnected: String::from("/usr/share/icons/Faenza/stock/24/stock_disconnect.png"),
+            unread: String::from("/usr/share/icons/oxygen/base/32x32/status/mail-unread.png"),
+            new_mail: String::from("/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png"),
         }
     }
 }
 
-pub(crate) const DEFAULT_ICONS: Icons = Icons {
-    connected: "/usr/share/icons/Faenza/stock/24/stock_connect.png",
-    disconnected: "/usr/share/icons/Faenza/stock/24/stock_disconnect.png",
-    unread: "/usr/share/icons/oxygen/base/32x32/status/mail-unread.png",
-    new_mail: "/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png",
-};
-
 impl TrayIcon {
-    pub(crate) fn new(icons: Icons) -> anyhow::Result<Self> {
-        let tray =
-            tray_item::TrayItem::new("Buzz", tray_item::IconSource::Resource(icons.disconnected))?;
+    pub(crate) fn new(icons: Option<Icons>, initial_icon: Icon) -> anyhow::Result<Self> {
+        let icons = icons.unwrap_or_else(Icons::get_default);
+        let leaked_icons: &'static Icons = Box::leak(Box::new(icons.clone())) as &'static Icons;
+        let tray = tray_item::TrayItem::new(
+            "Buzz",
+            tray_item::IconSource::Resource(leaked_icons.get_icon(initial_icon)),
+        )?;
+        let tray_icon = TrayIcon {
+            app: tray,
+            icons: leaked_icons,
+        };
 
-        Ok(TrayIcon { app: tray, icons })
+        Ok(tray_icon)
     }
 
     pub(crate) fn set_icon(&mut self, icon: Icon) -> anyhow::Result<()> {
