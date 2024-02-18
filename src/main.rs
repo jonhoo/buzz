@@ -7,7 +7,6 @@ use serde::Deserialize;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 use std::process::Command;
@@ -20,7 +19,7 @@ use directories_next::ProjectDirs;
 #[cfg(feature = "systray")]
 mod tray_icon;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Config {
     #[cfg(feature = "systray")]
     icons: Option<tray_icon::Icons>,
@@ -30,24 +29,21 @@ struct Config {
 
 impl Config {
     fn from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let mut file = File::open(path).context("Could not open configuration file at: {path}")?;
-        let mut config_contents = String::new();
-
-        file.read_to_string(&mut config_contents)
-            .context("Could not read configuration file")?;
-
+        let config_contents = std::fs::read_to_string(path.as_ref())
+            .with_context(|| format!("read configuration file at: {:?}", path.as_ref()))?;
         toml::from_str(&config_contents).context("Could not parse configuration")
     }
 }
 
 /// A representation of an account as is available in the configuration
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct ConfigAccount {
     name: String,
     server: String,
     port: u16,
     username: String,
     password: Option<String>,
+    #[serde(alias = "notificationcmd")]
     notification_command: Option<String>,
     folder: Option<String>,
     #[serde(default)]
@@ -71,31 +67,35 @@ struct ConnectionAccount {
 }
 
 impl ConfigAccount {
-    fn to_connection_accounts(config: &ConfigAccount) -> anyhow::Result<Vec<ConnectionAccount>> {
-        let password = match (&config.password, &config.pwcmd) {
-            (Some(password), _) => password.clone(),
-            (None, Some(pwcmd)) => String::from_utf8_lossy(
+    fn into_connection_accounts(self) -> anyhow::Result<Vec<ConnectionAccount>> {
+        let password = match (&self.password, &self.pwcmd) {
+            (Some(password), None) => password.clone(),
+            (None, Some(pwcmd)) => String::from_utf8(
                 Command::new("sh")
                     .arg("-c")
                     .arg(pwcmd)
                     .output()
-                    .context("Password command did not produce a password")?
-                    .stdout
-                    .as_ref(),
+                    .context("Execute password command")?
+                    .stdout,
             )
+            .context("pwcmd is not valid UTF-8")?
             .trim()
             .to_string(),
+            (Some(_), Some(_)) => anyhow::bail!(
+                "Provide only one of password or pwcmd for account: {name}",
+                name = self.name
+            ),
             (None, None) => {
                 anyhow::bail!(
                     "Either password or pwcmd must be provided for account: {name}",
-                    name = config.name
+                    name = self.name
                 )
             }
         };
 
-        let mut folders = config.folders.clone();
+        let mut folders = self.folders.clone();
 
-        if let Some(folder) = &config.folder {
+        if let Some(folder) = &self.folder {
             folders.push(folder.to_owned());
         }
 
@@ -106,12 +106,12 @@ impl ConfigAccount {
         Ok(folders
             .into_iter()
             .map(|folder| ConnectionAccount {
-                name: config.name.clone(),
-                server: config.server.trim().to_string(),
-                port: config.port,
-                username: config.username.trim().to_string(),
+                name: self.name.clone(),
+                server: self.server.trim().to_string(),
+                port: self.port,
+                username: self.username.trim().to_string(),
                 password: password.clone(),
-                notification_command: config.notification_command.clone(),
+                notification_command: self.notification_command.clone(),
                 folder,
             })
             .collect())
@@ -337,13 +337,14 @@ fn main() -> anyhow::Result<()> {
     )?;
 
     if config.accounts.is_empty() {
-        anyhow::bail!("No accounts in config; exiting...");
+        eprintln!("No accounts in config; exiting...");
+        return Ok(());
     }
 
     let (account_folders, problems): (Vec<_>, Vec<_>) = config
         .accounts
-        .iter()
-        .map(ConfigAccount::to_connection_accounts)
+        .into_iter()
+        .map(ConfigAccount::into_connection_accounts)
         .partition(Result::is_ok);
 
     if !problems.is_empty() {

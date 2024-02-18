@@ -12,7 +12,7 @@ pub(crate) struct TrayIcon {
     app: tray_item::TrayItem,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub(crate) struct Icons {
     pub(crate) connected: String,
     pub(crate) disconnected: String,
@@ -29,8 +29,10 @@ impl Icons {
             Icon::NewMail => &self.new_mail,
         }
     }
+}
 
-    fn get_default() -> Self {
+impl Default for Icons {
+    fn default() -> Self {
         Self {
             connected: String::from("/usr/share/icons/Faenza/stock/24/stock_connect.png"),
             disconnected: String::from("/usr/share/icons/Faenza/stock/24/stock_disconnect.png"),
@@ -42,7 +44,7 @@ impl Icons {
 
 impl TrayIcon {
     pub(crate) fn new(icons: Option<Icons>, initial_icon: Icon) -> anyhow::Result<Self> {
-        let icons = icons.unwrap_or_else(Icons::get_default);
+        let icons = icons.unwrap_or_default();
         let leaked_icons: &'static Icons = Box::leak(Box::new(icons.clone())) as &'static Icons;
         let tray = tray_item::TrayItem::new(
             "Buzz",
