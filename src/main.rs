@@ -78,7 +78,7 @@ impl ConfigAccount {
                     .context("Execute password command")?
                     .stdout,
             )
-            .context("pwcmd is not valid UTF-8")?
+            .context("pwcmd output is not valid UTF-8")?
             .trim()
             .to_string(),
             (Some(_), Some(_)) => anyhow::bail!(
