@@ -42,7 +42,7 @@ Additionally, icons can be configured in an icon section:
 ```toml
 [icons]
 connected = "/usr/share/icons/Faenza/stock/24/stock_connect.png"
-disconnect = "/usr/share/icons/Faenza/stock/24/stock_disconnect.png"
+disconnected = "/usr/share/icons/Faenza/stock/24/stock_disconnect.png"
 unread = "/usr/share/icons/oxygen/base/32x32/status/mail-unread.png"
 new_mail = "/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png"
 ```
