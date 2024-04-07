@@ -28,12 +28,13 @@ to one account:
 
 ```toml
 [[account]]
-name = gmail
+name = "gmail"
 server = "imap.gmail.com"
 port = 993
 username = "jon@gmail.com"
-pwcmd = "gnome-keyring-query get gmail_pw"
+pwcmd = "gnome-keyring-query get gmail_pw" # or use the `password` field to set it in plain text
 notificationcmd = "ssh -t somehost wall 'New gmail message!'" #Optional
+folders = [ "INBOX" ] # Optional
 ```
 
 Additionally, icons can be configured in an icon section:
