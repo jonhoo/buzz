@@ -45,7 +45,6 @@ struct ConfigAccount {
     password: Option<String>,
     #[serde(alias = "notificationcmd")]
     notification_command: Option<String>,
-    folder: Option<String>,
     #[serde(default)]
     folders: Vec<String>,
     pwcmd: Option<String>,
@@ -94,10 +93,6 @@ impl ConfigAccount {
         };
 
         let mut folders = self.folders.clone();
-
-        if let Some(folder) = &self.folder {
-            folders.push(folder.to_owned());
-        }
 
         if folders.is_empty() {
             folders.push("INBOX".to_owned());
