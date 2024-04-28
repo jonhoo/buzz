@@ -1,6 +1,6 @@
 [package]
 name = "buzz"
-version = "1.7.0-rc.3"
+version = "2.0.0"
 edition = "2021"
 authors = ["Jon Gjengset <jon@thesquareplanet.com>"]
 description = "A simple system tray application for notifying about unseen e-mail"
@@ -23,7 +23,7 @@ systray = ["tray-item"]
 
 [dependencies]
 anyhow = "1"
-imap = { version = "=3.0.0-alpha.12", features = ["rustls-tls"] }
+imap = { version = "=3.0.0-alpha.14", features = ["rustls-tls"] }
 mailparse = "0.14"
 toml = "0.8"
 notify-rust = "4.0.0-beta.2"
@@ -31,5 +31,5 @@ rayon = "1.0.0"
 askama_escape = "0.10"
 chrono = "0.4"
 directories-next = "2"
-tray-item = { version = "0.9.0", features=["ksni"], optional = true}
+tray-item = { version = "0.10.0", features=["ksni"], optional = true}
 serde = { version = "1.0.196", features = ["derive"] }
