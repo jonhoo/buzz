@@ -3,14 +3,14 @@
 use anyhow::Context;
 use imap::ImapConnection;
 use rayon::prelude::*;
+use serde::Deserialize;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::fs::File;
 use std::io::prelude::*;
+use std::path::Path;
 use std::process::Command;
 use std::sync::mpsc;
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -19,31 +19,109 @@ use directories_next::ProjectDirs;
 #[cfg(feature = "systray")]
 mod tray_icon;
 
-#[derive(Clone)]
-struct Account {
+#[derive(Debug, Deserialize)]
+struct Config {
+    #[cfg(feature = "systray")]
+    icons: Option<tray_icon::Icons>,
+    #[serde(rename = "account")]
+    accounts: Vec<ConfigAccount>,
+}
+
+impl Config {
+    fn from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        let config_contents = std::fs::read_to_string(path.as_ref())
+            .with_context(|| format!("read configuration file at: {:?}", path.as_ref()))?;
+        toml::from_str(&config_contents).context("Could not parse configuration")
+    }
+}
+
+/// A representation of an account as is available in the configuration
+#[derive(Clone, Debug, Deserialize)]
+struct ConfigAccount {
     name: String,
-    server: (String, u16),
+    server: String,
+    port: u16,
+    username: String,
+    password: Option<String>,
+    #[serde(alias = "notificationcmd")]
+    notification_command: Option<String>,
+    #[serde(default)]
+    folders: Vec<String>,
+    pwcmd: Option<String>,
+}
+
+/// A representation of an account as is used by Buzz.
+///
+/// This version of the accounts is sanitized and is duplicated into a
+/// separate account for every folder.
+#[derive(Clone, Deserialize, Debug)]
+struct ConnectionAccount {
+    name: String,
+    server: String,
+    port: u16,
     username: String,
     password: String,
     notification_command: Option<String>,
-    folders: Vec<String>,
-}
-
-#[derive(Clone)]
-struct AccountFolder {
-    account: Arc<Account>,
     folder: String,
 }
 
-impl AccountFolder {
+impl ConfigAccount {
+    fn into_connection_accounts(self) -> anyhow::Result<Vec<ConnectionAccount>> {
+        let password = match (&self.password, &self.pwcmd) {
+            (Some(password), None) => password.clone(),
+            (None, Some(pwcmd)) => String::from_utf8(
+                Command::new("sh")
+                    .arg("-c")
+                    .arg(pwcmd)
+                    .output()
+                    .context("Execute password command")?
+                    .stdout,
+            )
+            .context("pwcmd output is not valid UTF-8")?
+            .trim()
+            .to_string(),
+            (Some(_), Some(_)) => anyhow::bail!(
+                "Provide only one of password or pwcmd for account: {name}",
+                name = self.name
+            ),
+            (None, None) => {
+                anyhow::bail!(
+                    "Either password or pwcmd must be provided for account: {name}",
+                    name = self.name
+                )
+            }
+        };
+
+        let mut folders = self.folders.clone();
+
+        if folders.is_empty() {
+            folders.push("INBOX".to_owned());
+        }
+
+        Ok(folders
+            .into_iter()
+            .map(|folder| ConnectionAccount {
+                name: self.name.clone(),
+                server: self.server.trim().to_string(),
+                port: self.port,
+                username: self.username.trim().to_string(),
+                password: password.clone(),
+                notification_command: self.notification_command.clone(),
+                folder,
+            })
+            .collect())
+    }
+}
+
+impl ConnectionAccount {
     pub fn connect(&self) -> anyhow::Result<Connection<Box<dyn ImapConnection>>> {
-        let c = imap::ClientBuilder::new(&*self.account.server.0, self.account.server.1)
+        let c = imap::ClientBuilder::new(&*self.server, self.port)
             .mode(imap::ConnectionMode::AutoTls)
             .tls_kind(imap::TlsKind::Rust)
             .connect()
             .context("connect")?;
         let mut c = c
-            .login(self.account.username.trim(), self.account.password.trim())
+            .login(&self.username, &self.password)
             .map_err(|(e, _)| e)
             .context("login")?;
         let cap = c.capabilities().context("get capabilities")?;
@@ -61,14 +139,14 @@ impl AccountFolder {
         c.select(folder).context("select folder")?;
 
         Ok(Connection {
-            account_folder: self.clone(),
+            account: self.clone(),
             socket: c,
         })
     }
 }
 
 struct Connection<T: Read + Write> {
-    account_folder: AccountFolder,
+    account: ConnectionAccount,
     socket: imap::Session<T>,
 }
 
@@ -78,10 +156,7 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
             if let Err(e) = self.check(account, &mut tx) {
                 // the connection has failed for some reason
                 // try to log out (we probably can't)
-                eprintln!(
-                    "connection to {} failed: {:?}",
-                    self.account_folder.account.name, e
-                );
+                eprintln!("connection to {} failed: {:?}", self.account.name, e);
                 let _ = self.socket.logout();
                 break;
             }
@@ -92,21 +167,15 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
         for _ in 0..5 {
             eprintln!(
                 "connection to {} lost; trying to reconnect...",
-                self.account_folder.account.name
+                &self.account.name
             );
-            match self.account_folder.connect() {
+            match self.account.connect() {
                 Ok(c) => {
-                    println!(
-                        "{} connection reestablished",
-                        self.account_folder.account.name
-                    );
+                    eprintln!("{} connection reestablished", self.account.name);
                     return c.handle(account, tx);
                 }
                 Err(e) => {
-                    eprintln!(
-                        "failed to connect to {}: {:?}",
-                        self.account_folder.account.name, e
-                    );
+                    eprintln!("failed to connect to {}: {:?}", self.account.name, e);
                     thread::sleep(Duration::from_secs(wait));
                 }
             }
@@ -179,13 +248,13 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
             }
 
             if !subjects.is_empty() {
-                if let Some(notificationcmd) = &self.account_folder.account.notification_command {
+                if let Some(notificationcmd) = &self.account.notification_command {
                     match Command::new("sh").arg("-c").arg(notificationcmd).status() {
                         Ok(s) if s.success() => {}
                         Ok(s) => {
                             eprint!(
                                 "Notification command for {} did not exit successfully.",
-                                self.account_folder.account.name
+                                self.account.name
                             );
                             if let Some(exit_code) = s.code() {
                                 eprintln!(" Exit code: {}", exit_code);
@@ -196,17 +265,14 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
                         Err(e) => {
                             eprintln!(
                                 "Could not execute notification command for {}: {}",
-                                self.account_folder.account.name, e
+                                self.account.name, e
                             );
                         }
                     }
                 }
 
                 use notify_rust::{Hint, Notification};
-                let title = format!(
-                    "@{} has new mail ({})",
-                    self.account_folder.account.name, num_new
-                );
+                let title = format!("@{} has new mail ({})", self.account.name, num_new);
 
                 // we want the n newest e-mail in reverse chronological order
                 let mut body = String::new();
@@ -256,171 +322,43 @@ impl<T: Read + Write + imap::extensions::idle::SetReadTimeout> Connection<T> {
     }
 }
 
-#[inline]
-fn parse_failed<T>(key: &str, typename: &str) -> Option<T> {
-    println!("Failed to parse '{}' as {}", key, typename);
-    None
-}
-
-fn main() {
+fn main() -> anyhow::Result<()> {
     // Load the user's config
-    let config = ProjectDirs::from("", "", "buzz")
-        .expect("Could not find valid home directory.")
-        .config_dir()
-        .with_file_name("buzz.toml");
+    let config = Config::from_file(
+        ProjectDirs::from("", "", "buzz")
+            .expect("Could not find valid home directory.")
+            .config_dir()
+            .with_file_name("buzz.toml"),
+    )?;
 
-    let config = {
-        let mut f = match File::open(config) {
-            Ok(f) => f,
-            Err(e) => {
-                println!("Could not open configuration file buzz.toml: {}", e);
-                return;
-            }
-        };
-        let mut s = String::new();
-        if let Err(e) = f.read_to_string(&mut s) {
-            println!("Could not read configuration file buzz.toml: {}", e);
-            return;
-        }
-        match s.parse::<toml::Value>() {
-            Ok(t) => t,
-            Err(e) => {
-                println!("Could not parse configuration file buzz.toml: {}", e);
-                return;
-            }
-        }
-    };
-
-    // Figure out what accounts we have to deal with
-    let accounts: Vec<_> = match config.as_table() {
-        Some(t) => t
-            .iter()
-            .filter_map(|(name, v)| match v.as_table() {
-                None => {
-                    println!("Configuration for account {} is broken: not a table", name);
-                    None
-                }
-                Some(t) => {
-                    let pwcmd = match t.get("pwcmd").and_then(|p| p.as_str()) {
-                        None => return None,
-                        Some(pwcmd) => pwcmd,
-                    };
-
-                    let password = match Command::new("sh").arg("-c").arg(pwcmd).output() {
-                        Ok(output) => String::from_utf8_lossy(&output.stdout).into_owned(),
-                        Err(e) => {
-                            println!("Failed to launch password command for {}: {}", name, e);
-                            return None;
-                        }
-                    };
-
-                    Some(Account {
-                        name: name.as_str().to_owned(),
-                        server: (
-                            match t["server"].as_str() {
-                                Some(v) => v.to_owned(),
-                                None => return parse_failed("server", "string"),
-                            },
-                            match t["port"].as_integer() {
-                                Some(v) => v as u16,
-                                None => {
-                                    return parse_failed("port", "integer");
-                                }
-                            },
-                        ),
-                        username: match t["username"].as_str() {
-                            Some(v) => v.to_owned(),
-                            None => {
-                                return parse_failed("username", "string");
-                            }
-                        },
-                        password,
-                        notification_command: t.get("notificationcmd").and_then(
-                            |raw_v| match raw_v.as_str() {
-                                Some(v) => Some(v.to_string()),
-                                None => parse_failed("notificationcmd", "string"),
-                            },
-                        ),
-                        folders: {
-                            // Parse the folders field
-                            let mut folders: Vec<String> = t
-                                .get("folders")
-                                .and_then(|raw_v| {
-                                    raw_v
-                                        .as_array()
-                                        .map(|v| {
-                                            v.iter()
-                                                .filter_map(|raw_v| {
-                                                    raw_v
-                                                        .as_str()
-                                                        .map(|v| v.to_string())
-                                                        .or_else(|| parse_failed("folders", "str"))
-                                                })
-                                                .collect()
-                                        })
-                                        .or_else(|| parse_failed("folders", "array"))
-                                })
-                                .unwrap_or_default();
-
-                            // Parse the old folder field and push it to the list of folders
-                            if let Some(folder) = t.get("folder").and_then(|raw_v| {
-                                raw_v
-                                    .as_str()
-                                    .map(|x| x.to_string())
-                                    .or_else(|| parse_failed("folder", "string"))
-                            }) {
-                                folders.push(folder);
-                            }
-
-                            if folders.is_empty() {
-                                vec![String::from("INBOX")]
-                            } else {
-                                folders
-                            }
-                        },
-                    })
-                }
-            })
-            .collect(),
-        None => {
-            println!("Could not parse configuration file buzz.toml: not a table");
-            return;
-        }
-    };
-
-    if accounts.is_empty() {
-        println!("No accounts in config; exiting...");
-        return;
+    if config.accounts.is_empty() {
+        eprintln!("No accounts in config; exiting...");
+        return Ok(());
     }
 
-    let mut account_folders = Vec::new();
+    let (account_folders, problems): (Vec<_>, Vec<_>) = config
+        .accounts
+        .into_iter()
+        .map(ConfigAccount::into_connection_accounts)
+        .partition(Result::is_ok);
 
-    for account in accounts {
-        let account_ref = Arc::new(account);
-        for folder in &account_ref.folders {
-            account_folders.push(AccountFolder {
-                account: Arc::clone(&account_ref),
-                folder: folder.clone(),
-            });
-        }
+    if !problems.is_empty() {
+        eprintln!("Encountered some problems parsing the accounts:");
+    }
+    for problem in problems {
+        eprintln!("{}", problem.unwrap_err());
     }
 
     let (tx, rx) = mpsc::channel();
 
     #[cfg(feature = "systray")]
-    let mut tray_icon = match tray_icon::TrayIcon::new(tray_icon::Icon::Disconnected) {
-        Ok(tray_icon) => tray_icon,
-        Err(e) => {
-            eprintln!("Could not create tray item\n{}", e);
-            return;
-        }
-    };
+    let mut tray_icon = tray_icon::TrayIcon::new(config.icons, tray_icon::Icon::Disconnected)
+        .context("Could not create tray item")?;
 
-    // TODO: w.set_tooltip(&"Whatever".to_string());
-    // TODO: app.wait_for_message();
-
-    let accounts: Vec<_> = account_folders
-        .par_iter()
+    let account_folders: Vec<_> = account_folders
+        .into_iter()
+        .flat_map(Result::unwrap)
+        .par_bridge()
         .filter_map(|account_folder| {
             let mut wait = 1;
             for _ in 0..5 {
@@ -432,7 +370,7 @@ fn main() {
                         {
                             println!(
                                 "Failed to connect account {}: {}; retrying in {}s",
-                                account_folder.account.name, e, wait
+                                &account_folder.name, e, wait
                             );
                             thread::sleep(Duration::from_secs(wait));
                             wait *= 2;
@@ -440,7 +378,7 @@ fn main() {
                         }
                         println!(
                             "{} host produced bad IMAP tunnel: {:?}",
-                            account_folder.account.name, e
+                            account_folder.name, e
                         );
                         break;
                     }
@@ -451,19 +389,18 @@ fn main() {
         })
         .collect();
 
-    if accounts.is_empty() {
-        println!("No accounts in config worked; exiting...");
-        return;
+    if account_folders.is_empty() {
+        anyhow::bail!("No accounts in config worked; exiting...");
     }
 
     // We have now connected
     #[cfg(feature = "systray")]
-    if let Err(e) = tray_icon.set_icon(tray_icon::Icon::Connected) {
-        eprintln!("Unable to set tray icon\n{}", e);
-    };
+    tray_icon
+        .set_icon(tray_icon::Icon::Connected)
+        .context("Unable to set tray icon")?;
 
-    let mut new: Vec<_> = accounts.iter().map(|_| 0).collect();
-    for (i, conn) in accounts.into_iter().enumerate() {
+    let mut new: Vec<_> = account_folders.iter().map(|_| 0).collect();
+    for (i, conn) in account_folders.into_iter().enumerate() {
         let tx = tx.clone();
         thread::spawn(move || {
             conn.handle(i, tx);
@@ -490,4 +427,6 @@ fn main() {
             }
         }
     }
+
+    Ok(())
 }

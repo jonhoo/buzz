@@ -23,16 +23,28 @@ the same features, and is written in Go.
 buzz looks for a
 [TOML](https://github.com/toml-lang/toml#user-content-example)
 configuration file in `~/.config/buzz.toml` on startup. The
-configuration file consists of a number of sections, each corresponding
+configuration file consists of a number of account tables, each corresponding
 to one account:
 
 ```toml
-[gmail]
+[[account]]
+name = "gmail"
 server = "imap.gmail.com"
 port = 993
 username = "jon@gmail.com"
-pwcmd = "gnome-keyring-query get gmail_pw"
+pwcmd = "gnome-keyring-query get gmail_pw" # or use the `password` field to set it in plain text
 notificationcmd = "ssh -t somehost wall 'New gmail message!'" #Optional
+folders = [ "INBOX" ] # Optional
+```
+
+Additionally, icons can be configured in an icon section:
+
+```toml
+[icons]
+connected = "/usr/share/icons/Faenza/stock/24/stock_connect.png"
+disconnected = "/usr/share/icons/Faenza/stock/24/stock_disconnect.png"
+unread = "/usr/share/icons/oxygen/base/32x32/status/mail-unread.png"
+new_mail = "/usr/share/icons/oxygen/base/32x32/status/mail-unread-new.png"
 ```
 
 ## Account fields
