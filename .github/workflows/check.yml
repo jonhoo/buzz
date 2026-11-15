@@ -92,7 +92,7 @@ jobs:
     # https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
     strategy:
       matrix:
-        msrv: ["1.67.1"] # toml_datetime
+        msrv: ["1.77.0"] # zbus 5 (via notify-rust)
     name: ubuntu / ${{ matrix.msrv }}
     steps:
       - uses: actions/checkout@v4
