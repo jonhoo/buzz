@@ -4,7 +4,7 @@ version = "2.0.0"
 edition = "2021"
 authors = ["Jon Gjengset <jon@thesquareplanet.com>"]
 description = "A simple system tray application for notifying about unseen e-mail"
-rust-version = "1.67.1"
+rust-version = "1.77.0"
 
 homepage = "https://github.com/jonhoo/buzz"
 repository = "https://github.com/jonhoo/buzz.git"
