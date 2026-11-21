@@ -27,7 +27,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install libdbus-1-dev pkg-config
       - name: Install nightly
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # branch=master
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # branch=master
         with:
           toolchain: nightly
       - name: cargo generate-lockfile
